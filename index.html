@@ -131,6 +131,37 @@ dialog::backdrop{background:#3c4b4866}
 .room-progress{height:9px;background:#e3d9c2;border-radius:8px;overflow:hidden;margin:12px 0 4px}
 .room-progress>span{display:block;height:100%;background:#7dbb89;border-radius:8px}
 .room-caption{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;font-size:12px;color:#59734d}
+/* 排行榜 */
+.brand-tools{display:flex;align-items:center;gap:7px}
+.rank-button .icon{width:21px;height:21px}
+.rank-tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;background:#efe2c8;padding:5px;border-radius:12px;margin:14px 0 12px}
+.rank-tab{min-height:35px;border-radius:9px;font-size:12.5px;font-weight:700;letter-spacing:1px;color:#8a7155;background:transparent}
+.rank-tab.on{background:#fffaf0;color:#3c2d24;box-shadow:0 2px 0 #d9c7a4}
+.rank-hero{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#f1f7e3;border:1px solid #cfe0b4;border-radius:13px;padding:11px 13px;margin-bottom:10px}
+.rank-hero strong{font-size:17px;letter-spacing:1px}
+.rank-hero small{display:block;font-size:10.5px;line-height:1.6;color:#6d8557;margin-top:3px}
+.rank-hero button{flex-shrink:0;font-size:11px;padding:7px 10px;border-radius:8px;background:#fffaf0;border:1px solid #cfbb98;color:#846649}
+.rank-list{display:flex;flex-direction:column;gap:3px;max-height:40svh;overflow:auto;-webkit-overflow-scrolling:touch}
+.rank-row{display:grid;grid-template-columns:26px 1fr auto;align-items:center;gap:9px;padding:8px 10px;border-radius:9px;background:#faf5e8}
+.rank-row:nth-child(even){background:#f5eddc}
+.rank-row.me{background:#e8f2d5;box-shadow:inset 0 0 0 1.5px #a8c186}
+.rank-no{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:11.5px;font-weight:800;background:#e6dcc6;color:#8a7155}
+.rank-no.t1{background:#f6c36e;color:#6c4d25;box-shadow:inset 0 -2px 0 #d59f45}
+.rank-no.t2{background:#dbd8cd;color:#6a6558;box-shadow:inset 0 -2px 0 #b8b3a3}
+.rank-no.t3{background:#e0ab74;color:#6f4520;box-shadow:inset 0 -2px 0 #bd8450}
+.rank-name{display:flex;flex-direction:column;gap:2px;min-width:0}
+.rank-nick{display:flex;align-items:center;gap:5px;font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rank-nick em{font-style:normal;font-size:9px;padding:1px 5px;border-radius:6px;background:#7dbb89;color:#fff;font-weight:700;flex-shrink:0}
+.rank-sub{font-size:10px;color:#9a8668;font-weight:500}
+.rank-val{font-size:13.5px;font-weight:800;color:#4e6b52;font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+.rank-val small{font-size:9.5px;font-weight:600;color:#8a9a7c;margin-left:2px}
+.rank-gap{text-align:center;font-size:11px;color:#b1a184;letter-spacing:3px;padding:2px 0}
+.rank-empty{text-align:center;font-size:12px;color:#8a7155;padding:22px 10px;line-height:1.9;background:#f7f1e2;border-radius:11px}
+.rank-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:10.5px;color:#9a8668;margin-top:9px}
+.region-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;max-height:46svh;overflow:auto;margin:12px 0 4px}
+.region-grid button{min-height:38px;border-radius:9px;background:#f6efdd;border:1px solid #e0d0b1;font-size:12px;color:#5f4a35}
+.region-grid button.on{background:#d8e5ba;border-color:#8ba36f;font-weight:800;color:#3f5c34}
+.rank-callout{width:100%;margin-top:12px;padding:11px;border-radius:11px;border:1px dashed #cfa763;background:#fff6dd;color:#8a653a;font-size:12.5px;font-weight:700;letter-spacing:.5px}
 .toast{position:fixed;left:50%;bottom:max(30px,env(safe-area-inset-bottom));transform:translate(-50%,15px);background:#4e493ded;color:#fff9e7;box-shadow:0 4px 20px #2d41292b;padding:12px 19px;border-radius:13px;max-width:min(420px,90vw);width:max-content;text-align:center;font-size:12px;line-height:1.7;pointer-events:none;opacity:0;transition:opacity .2s,transform .2s;z-index:20}
 .toast.show{opacity:1;transform:translate(-50%,0)}
 .hidden{visibility:hidden}
@@ -141,7 +172,13 @@ dialog::backdrop{background:#3c4b4866}
   .desktop-note,.below-game{display:none}
   .game-shell{height:100%;min-height:0;display:flex;flex-direction:column;overflow:hidden;border-radius:0;border:0;box-shadow:none}
   .game-header{flex:none;padding:calc(3px + env(safe-area-inset-top)) 10px 3px}
-  .brand-row{display:none}
+  .brand-row{height:19px;margin-bottom:1px}
+  .brand{font-size:11px;letter-spacing:1px}
+  .brand-stamp{display:none}
+  .brand-tools{gap:10px}
+  .help-button .icon,.rank-button .icon{width:17px;height:17px}
+  .rank-list{max-height:44svh}
+  .region-grid{grid-template-columns:repeat(4,1fr)}
   .level-row{height:48px;gap:12px;grid-template-columns:48px 1fr 48px}
   .level-plaque{height:44px;border-radius:10px}
   .level-plaque:before,.level-plaque:after{display:none}
@@ -182,6 +219,7 @@ dialog::backdrop{background:#3c4b4866}
   <symbol id="i-levels" viewBox="0 0 24 24"><rect x="3" y="3" width="6" height="6" rx="1"/><rect x="15" y="3" width="6" height="6" rx="1"/><rect x="3" y="15" width="6" height="6" rx="1"/><rect x="15" y="15" width="6" height="6" rx="1"/></symbol>
   <symbol id="i-restart" viewBox="0 0 24 24"><path d="M3 10a9 9 0 1 1 1 7M3 4v6h6"/></symbol>
   <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9 9a3 3 0 0 1 6 0c0 2-3 2-3 5M12 17h.01"/></symbol>
+  <symbol id="i-rank" viewBox="0 0 24 24"><path d="M8 4h8v5a4 4 0 0 1-8 0V4Z"/><path d="M8 5.5H5.5V7a3 3 0 0 0 3 3M16 5.5h2.5V7a3 3 0 0 1-3 3"/><path d="M12 13v2.5M9.5 20l.7-3.5h3.6l.7 3.5z"/></symbol>
 </svg>
 
 <main class="playground" aria-label="螺丝小屋游戏">
@@ -190,7 +228,10 @@ dialog::backdrop{background:#3c4b4866}
     <header class="game-header">
       <div class="brand-row">
         <span class="brand">螺丝小屋<span class="brand-stamp">无广告</span></span>
-        <button class="text-button help-button" id="btnHelp" aria-label="玩法说明"><svg class="icon"><use href="#i-help"/></svg></button>
+        <div class="brand-tools">
+          <button class="text-button rank-button" id="btnRank" aria-label="排行榜"><svg class="icon"><use href="#i-rank"/></svg></button>
+          <button class="text-button help-button" id="btnHelp" aria-label="玩法说明"><svg class="icon"><use href="#i-help"/></svg></button>
+        </div>
       </div>
       <div class="level-row">
         <button class="round-button" id="btnPause" aria-label="暂停与设置"><svg class="icon"><use href="#i-pause"/></svg></button>
@@ -1894,6 +1935,8 @@ module.exports = { createRenderer, configure, coreScrewPos, HEAD, BOARD_SCALE, B
   const canvas = $('gameCanvas');
   const dialog = $('gameDialog');
   const inner = $('dialogInner');
+  // 任何途径关掉弹窗（含 Esc 原生 cancel）都恢复计时，避免 paused 卡死
+  dialog.addEventListener('close', function () { paused = false; regionPicking = false; });
   const SAVE_KEY = 'screw-cottage.h5.v1';
 
   const COLORS = core.COLORS;
@@ -2043,6 +2086,7 @@ module.exports = { createRenderer, configure, coreScrewPos, HEAD, BOARD_SCALE, B
   $('btnPause').addEventListener('click', showPause);
   $('btnHelp').addEventListener('click', showHelp);
   $('btnRoom').addEventListener('click', showRoom);
+  $('btnRank').addEventListener('click', function () { showRank('region'); });
   $('btnDesktop').addEventListener('click', () => toast('H5 原型：加入主屏幕即可离线游玩（演示文案）'));
 
   document.addEventListener('keydown', (e) => {
@@ -2148,14 +2192,19 @@ module.exports = { createRenderer, configure, coreScrewPos, HEAD, BOARD_SCALE, B
   const btn = (label, action, cls, ic) => '<button class="button ' + (cls || 'soft') + '" data-action="' + action + '">' + (ic ? icon(ic) : '') + label + '</button>';
   const closeBtn = () => '<button class="dialog-close" data-action="close" aria-label="关闭">' + icon('close') + '</button>';
 
-  function handleAction(action) {
+  function handleAction(action, el) {
     switch (action) {
-      case 'close': closeDialog(); paused = false; break;
+      case 'close': closeDialog(); paused = false; regionPicking = false; break;
       case 'next': closeDialog(); startLevel(state.levelId + 1); break;
       case 'replay': closeDialog(); startLevel(state.levelId); break;
       case 'levels': showLevels(); break;
       case 'help': showHelp(); break;
       case 'room': showRoom(); break;
+      case 'rank': showRank('region'); break;
+      case 'rank-level': showRank('level'); break;
+      case 'rank-tab': rankTab = el.getAttribute('data-tab'); regionPicking = false; showRank(); break;
+      case 'pick-region': regionPicking = true; showRank('region'); break;
+      case 'set-region': profile.region = el.getAttribute('data-region'); regionPicking = false; saveProfile(); showRank('region'); break;
       case 'undo':
         closeDialog();
         ended = false;
@@ -2168,6 +2217,8 @@ module.exports = { createRenderer, configure, coreScrewPos, HEAD, BOARD_SCALE, B
 
   function showWon(first) {
     const lv = state.levelId;
+    const board = buildLevelBoard(lv);
+    const myRow = board.filter(function (r) { return r.me; })[0];
     const isFinal = lv === 20 && profile.cleared.length === 20;
     const title = isFinal ? '小屋完工，小橘猫入住！' : lv === 20 ? '终关机关完成！' : lv === 1 ? (profile.cleared.includes(1) && profile.best[1] ? '第1关完成！' : '第1关完成！') : '第 ' + lv + ' 关完成！';
     const decorCount = profile.cleared.length;
@@ -2183,6 +2234,7 @@ module.exports = { createRenderer, configure, coreScrewPos, HEAD, BOARD_SCALE, B
       '<div class="reward-line">' + (newFurniture ? '小屋添置了「' + esc2(newFurniture) + '」' : '再次完成！通关记录已保留。') + '</div>' +
       '<p class="room-progress-note" style="text-align:center;font-size:12px;color:#59734d;margin:8px 0">已添置 ' + decorCount + ' / 20 件摆设' + (decorCount < 20 ? ' · 再完成 ' + Math.max(1, decorCount - profile.cleared.length + 1) + ' 个新关卡' : '') + '</p>' +
       '<div class="modal-actions">' +
+      (myRow ? '<button class="rank-callout" data-action="rank-level">本关排名第 ' + myRow.rank + ' 名 · 看看排行榜 ›</button>' : '') +
       (lv < 20 ? btn('挑战第 ' + (lv + 1) + ' 关', 'next', 'primary', 'play') : btn('回看全部关卡', 'levels', 'primary', 'levels')) +
       '<div class="action-row">' + btn('查看小屋', 'room', 'soft', 'home') + btn('重玩这一关', 'replay', 'soft', 'restart') + '</div>' +
       '</div>' +
@@ -2249,7 +2301,7 @@ module.exports = { createRenderer, configure, coreScrewPos, HEAD, BOARD_SCALE, B
       '</div>' +
       '<div class="toggle-row"><span>游戏音效<small>拧动、配对与结算声音</small></span><button class="switch" role="switch" aria-label="游戏音效" aria-checked="' + profile.settings.sound + '" data-action="toggle-sound"></button></div>' +
       '<div class="toggle-row"><span>自动提示<small>停稳后30秒未操作，轻轻提醒一次</small></span><button class="switch" role="switch" aria-label="自动提示" aria-checked="' + profile.settings.autoHint + '" data-action="toggle-autohint"></button></div>' +
-      '<div class="small-links"><button data-action="help">玩法说明</button><button data-action="room">我的小屋</button></div>' +
+      '<div class="small-links"><button data-action="help">玩法说明</button><button data-action="room">我的小屋</button><button data-action="rank">排行榜</button></div>' +
       '<p class="fine-print">H5 原型 · 20关机关挑战 · 全程无广告<br>进度仅保存在当前浏览器。</p>');
   }
 
@@ -2311,6 +2363,186 @@ module.exports = { createRenderer, configure, coreScrewPos, HEAD, BOARD_SCALE, B
     _origHandle(action, el);
   };
 
+  /* ------------------------------ 排行榜 ------------------------------ */
+  const RANK_NICKS = ['橘猫饲养员','拆家小队长','木工阿吉','拧螺丝的鱼','螺丝收藏家','午后木屑','一只小板凳','手工课代表','钉子户本户','扳手小张','木屋守夜人','小橘猫邻居','螺丝转不停','爱拆家的小熊','工具袋','橡果工坊','深夜修屋','木匠学徒','螺丝松了','榫卯爱好者','一颗螺丝','小屋装修队','拆家不认输','指甲刀先生','铁锤妹妹','刨花','木纹控','下午三点的猫','咔哒咔哒','拆解大师','工具箱二代','斜杠木匠','三百目砂纸','螺丝星人','木屋保洁','橘猫罐头','螺丝钉先生','小锤四十','钉子小队长','木工房老板'];
+  const PROVINCES = [
+    ['广东',100],['江苏',93],['浙江',90],['山东',86],['河南',82],['四川',78],['湖北',72],['湖南',70],
+    ['河北',66],['福建',64],['安徽',62],['江西',58],['陕西',54],['辽宁',52],['广西',50],['山西',48],
+    ['云南',46],['贵州',44],['黑龙江',42],['吉林',38],['内蒙古',36],['新疆',34],['甘肃',30],['海南',28],
+    ['宁夏',24],['青海',20],['西藏',16],['北京',60],['上海',62],['天津',40],['重庆',56],
+    ['中国香港',26],['中国澳门',14],['中国台湾',32]
+  ];
+  let rankTab = 'region';
+  let regionPicking = false;
+
+  function hashStr(s) {
+    let h = 2166136261;
+    for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return h >>> 0;
+  }
+  function mulberry32(a) {
+    return function () {
+      a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  function dayKey() { const d = new Date(); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); }
+  function rngFor(key) { return mulberry32(hashStr(dayKey() + '|' + key)); }
+  function pad2(n) { return (n < 10 ? '0' : '') + n; }
+  function fmtMs(ms) { const s = Math.max(0, Math.round(ms / 1000)); return pad2(Math.floor(s / 60)) + ':' + pad2(s % 60); }
+  function pickNames(rnd, count) {
+    const used = {};
+    const out = [];
+    while (out.length < count) {
+      const n = RANK_NICKS[Math.floor(rnd() * RANK_NICKS.length)];
+      if (used[n]) continue;
+      used[n] = 1;
+      out.push(n);
+    }
+    return out;
+  }
+
+  function buildRegionBoard() {
+    const rnd = rngFor('region');
+    const mine = profile.region || '';
+    const list = PROVINCES.map(function (p) {
+      const base = Math.round(p[1] * (0.55 + rnd() * 0.9) * 11);
+      return { name: p[0], count: base + (p[0] === mine && profile.cleared.length ? 1 : 0), me: p[0] === mine };
+    });
+    list.sort(function (a, b) { return b.count - a.count; });
+    list.forEach(function (it, i) { it.rank = i + 1; });
+    return list;
+  }
+
+  function buildLevelBoard(levelId) {
+    const rnd = rngFor('lv' + levelId);
+    const names = pickNames(rnd, 11);
+    const list = names.map(function (name) {
+      const dice = rnd();
+      const hints = dice < 0.4 ? 0 : dice < 0.76 ? 1 : dice < 0.93 ? 2 : 3;
+      const ms = Math.round((55 + rnd() * 185 + hints * 24) * 1000);
+      return { name: name, hints: hints, ms: ms };
+    });
+    const mine = profile.best[levelId];
+    if (mine) list.push({ name: '我', hints: mine.hints, ms: mine.ms, me: true });
+    list.sort(function (a, b) { return a.hints - b.hints || a.ms - b.ms; });
+    list.forEach(function (it, i) { it.rank = i + 1; });
+    return list;
+  }
+
+  function buildTotalBoard() {
+    const rnd = rngFor('total');
+    const names = pickNames(rnd, 11);
+    const list = names.map(function (name) {
+      const cleared = 20 - Math.floor(rnd() * 12);
+      const zero = Math.floor(rnd() * (cleared * 0.45 + 1));
+      const ms = Math.round((cleared * 78 + rnd() * 880) * 1000);
+      return { name: name, cleared: cleared, zero: zero, ms: ms };
+    });
+    const myCleared = profile.cleared.length;
+    if (myCleared > 0) {
+      let zero = 0;
+      let ms = 0;
+      Object.keys(profile.best).forEach(function (k) {
+        if (profile.best[k].hints === 0) zero += 1;
+        ms += profile.best[k].ms || 0;
+      });
+      list.push({ name: '我', cleared: myCleared, zero: zero, ms: ms, me: true });
+    }
+    list.sort(function (a, b) { return b.cleared - a.cleared || b.zero - a.zero || a.ms - b.ms; });
+    list.forEach(function (it, i) { it.rank = i + 1; });
+    return list;
+  }
+
+  function rankRow(item, kind) {
+    const medal = item.rank <= 3 ? ' t' + item.rank : '';
+    let sub = '';
+    let val = '';
+    if (kind === 'region') { sub = '今日拆家'; val = item.count + '<small>人</small>'; }
+    else if (kind === 'level') { sub = '提示 ' + item.hints + ' 次'; val = fmtMs(item.ms); }
+    else { sub = '零提示 ' + item.zero + ' 关'; val = item.cleared + '<small>关</small>'; }
+    return '<div class="rank-row' + (item.me ? ' me' : '') + '">' +
+      '<span class="rank-no' + medal + '">' + item.rank + '</span>' +
+      '<span class="rank-name"><span class="rank-nick">' + esc2(item.name) + (item.me ? '<em>我</em>' : '') + '</span><span class="rank-sub">' + sub + '</span></span>' +
+      '<span class="rank-val">' + val + '</span></div>';
+  }
+
+  function rowsHtml(list, kind) {
+    const top = list.slice(0, 10);
+    const mine = list.filter(function (r) { return r.me; })[0];
+    let html = top.map(function (r) { return rankRow(r, kind); }).join('');
+    if (mine && mine.rank > 10) html += '<div class="rank-gap">· · ·</div>' + rankRow(mine, kind);
+    return '<div class="rank-list">' + html + '</div>';
+  }
+
+  function regionBoardHtml() {
+    const list = buildRegionBoard();
+    const mine = list.filter(function (r) { return r.me; })[0];
+    const contribution = profile.cleared.length;
+    return '<div class="rank-hero"><div><strong>' + esc2(profile.region) + '</strong><small>今日全国第 ' + (mine ? mine.rank : '—') + ' · 你已通关 ' + contribution + ' 关</small></div>' +
+      '<button data-action="pick-region">切换地区</button></div>' +
+      rowsHtml(list, 'region') +
+      '<div class="rank-foot"><span>按今日拆家人数排名</span><span>' + (contribution ? '为' + esc2(profile.region) + ' +' + contribution : '通关后为家乡 +1') + '</span></div>';
+  }
+
+  function pickRegionHtml() {
+    const grid = PROVINCES.map(function (p) {
+      return '<button data-action="set-region" data-region="' + p[0] + '"' + (profile.region === p[0] ? ' class="on"' : '') + '>' + p[0] + '</button>';
+    }).join('');
+    return '<p class="dialog-subtitle">选一个所在地区，和同乡一起冲榜<br>你的通关记录会算进该地区的成绩</p>' +
+      '<div class="region-grid">' + grid + '</div>';
+  }
+
+  function levelBoardHtml() {
+    const lv = state ? state.levelId : 1;
+    const level = getLevel(lv);
+    const list = buildLevelBoard(lv);
+    const mine = list.filter(function (r) { return r.me; })[0];
+    const hero = '<div class="rank-hero"><div><strong>第 ' + lv + ' 关 · ' + esc2(level ? level.name : '') + '</strong><small>' +
+      (mine ? '你的最好成绩：提示 ' + mine.hints + ' 次 · ' + fmtMs(mine.ms) : '本关还没有记录，通关后自动上榜') + '</small></div>' +
+      '<button data-action="levels">换一关</button></div>';
+    if (!mine) {
+      return hero + '<div class="rank-empty">通关这一关就会出现在榜上<br>提示越少、用时越短，排名越靠前</div>';
+    }
+    return hero + rowsHtml(list, 'level') +
+      '<div class="rank-foot"><span>排序：提示次数 → 用时</span><span>你在第 ' + mine.rank + ' 名</span></div>';
+  }
+
+  function totalBoardHtml() {
+    const list = buildTotalBoard();
+    const mine = list.filter(function (r) { return r.me; })[0];
+    const hero = '<div class="rank-hero"><div><strong>我的螺丝小屋</strong><small>' +
+      (mine ? '已通关 ' + mine.cleared + ' 关 · 零提示 ' + mine.zero + ' 关 · 累计 ' + fmtMs(mine.ms) : '还没有通关记录，修好第一间小屋再来看') + '</small></div>' +
+      '<button data-action="room">看小屋</button></div>';
+    if (!mine) return hero + '<div class="rank-empty">通关任意一关即可进入总榜<br>按通关数 → 零提示关数 → 累计用时排序</div>';
+    return hero + rowsHtml(list, 'total') +
+      '<div class="rank-foot"><span>排序：通关数 → 零提示 → 用时</span><span>你在第 ' + mine.rank + ' 名</span></div>';
+  }
+
+  function showRank(tab) {
+    if (tab) rankTab = tab;
+    if (state && state.status === 'playing') paused = true;
+    const tabs = [['region', '地区榜'], ['level', '本关榜'], ['total', '总榜']].map(function (t) {
+      return '<button class="rank-tab ' + (rankTab === t[0] ? 'on' : '') + '" data-action="rank-tab" data-tab="' + t[0] + '">' + t[1] + '</button>';
+    }).join('');
+    let body;
+    if (rankTab === 'region') body = (!profile.region || regionPicking) ? pickRegionHtml() : regionBoardHtml();
+    else if (rankTab === 'level') body = levelBoardHtml();
+    else body = totalBoardHtml();
+    const d = new Date();
+    setDialog('rank',
+      closeBtn() +
+      '<p class="dialog-kicker">' + (profile.region && !regionPicking ? esc2(profile.region) + ' · ' : '') + '今日 ' + (d.getMonth() + 1) + ' 月 ' + d.getDate() + ' 日</p>' +
+      '<h1>拆家排行榜</h1>' +
+      '<div class="rank-tabs">' + tabs + '</div>' +
+      body +
+      '<div class="modal-actions">' + btn('回到游戏', 'close', 'primary', 'play') + '</div>' +
+      '<p class="fine-print">原型排行使用本地演示数据 · 你的成绩真实取自本机记录<br>参考「羊了个羊」的地区战，正式版将接入云端同乡榜</p>');
+  }
+
+
   /* ------------------------------ 尺寸自适应 ------------------------------ */
   function layout() {
     const surface = canvas.parentElement;
@@ -2338,6 +2570,8 @@ module.exports = { createRenderer, configure, coreScrewPos, HEAD, BOARD_SCALE, B
       return res;
     },
     hint: () => doHint(false),
+    rank: (t) => { showRank(t || 'region'); return { tab: rankTab, region: profile.region }; },
+    profile: () => profile,
     renderer: () => renderer,
     poses: () => renderer.poses,
     swings: () => renderer.swings,
