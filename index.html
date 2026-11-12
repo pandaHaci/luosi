@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
-<title>螺丝小屋 · H5 原型</title>
+<title>螺丝小屋 · 拆家解压小游戏</title>
 <style>
 :root{color-scheme:light;--ink:#593d2d;--ink-dark:#3c2d24;--cream:#fff7e4;--paper:#fffaf0;--sky:#91d7eb;--wood:#f3cb8b;--wood-edge:#ab713c;--green:#4b9b76;--orange:#e89a4f;--font:"PingFang SC","Microsoft YaHei","Noto Sans SC",system-ui,sans-serif;font-family:var(--font);color:var(--ink-dark);background:#dbebe8;font-synthesis:none}
 *{box-sizing:border-box}
@@ -139,7 +139,14 @@ dialog::backdrop{background:#3c4b4866}
 .room-caption{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;font-size:12px;color:#59734d}
 /* 排行榜 */
 .brand-tools{display:flex;align-items:center;gap:7px}
-.rank-button .icon{width:21px;height:21px}
+.rank-button{display:inline-flex;align-items:center;gap:4px;padding:2px 9px 2px 6px;border-radius:13px;border:1.5px solid #a06f22;background:linear-gradient(#ffeeb5,#ffd06d);box-shadow:0 2px 0 #a06f22,inset 0 1px 0 #fffceb;color:#6b4510;font-size:10.5px;font-weight:900;letter-spacing:1px;line-height:1;animation:rankPulse 2.8s ease-in-out infinite;transform-origin:center}
+.rank-button .icon{width:16px;height:16px;fill:#f7a52a;stroke:#6f4410;stroke-width:1.9}
+.rank-button:active{transform:translateY(1px);box-shadow:0 1px 0 #a06f22,inset 0 1px 0 #fffceb}
+.rank-button:hover{filter:brightness(1.04)}
+.rank-button-text{white-space:nowrap}
+@keyframes rankPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+@media(prefers-reduced-motion:reduce){.rank-button{animation:none}}
+.help-button .icon{width:21px;height:21px}
 .rank-tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;background:#efe2c8;padding:5px;border-radius:12px;margin:14px 0 12px}
 .rank-tab{min-height:35px;border-radius:9px;font-size:12.5px;font-weight:700;letter-spacing:1px;color:#8a7155;background:transparent}
 .rank-tab.on{background:#fffaf0;color:#3c2d24;box-shadow:0 2px 0 #d9c7a4}
@@ -201,11 +208,13 @@ dialog::backdrop{background:#3c4b4866}
   .desktop-note,.below-game{display:none}
   .game-shell{height:100%;min-height:0;display:flex;flex-direction:column;overflow:hidden;border-radius:0;border:0;box-shadow:none}
   .game-header{flex:none;padding:calc(3px + env(safe-area-inset-top)) 10px 3px}
-  .brand-row{height:19px;margin-bottom:1px}
+  .brand-row{height:22px;margin-bottom:1px}
   .brand{font-size:11px;letter-spacing:1px}
   .brand-stamp{display:none}
-  .brand-tools{gap:10px}
-  .help-button .icon,.rank-button .icon{width:17px;height:17px}
+  .brand-tools{gap:8px}
+  .rank-button{padding:1px 7px 1px 5px;border-radius:11px;font-size:9.5px;letter-spacing:0}
+  .help-button .icon{width:17px;height:17px}
+  .rank-button .icon{width:13px;height:13px}
   .rank-list{max-height:44svh}
   .region-grid{grid-template-columns:repeat(4,1fr)}
   .level-row{height:48px;gap:12px;grid-template-columns:48px 1fr 48px}
@@ -260,9 +269,11 @@ dialog::backdrop{background:#3c4b4866}
   <section class="game-shell">
     <header class="game-header">
       <div class="brand-row">
-        <span class="brand">螺丝小屋<span class="brand-stamp">无广告</span></span>
+        <span class="brand">螺丝小屋</span>
         <div class="brand-tools">
-          <button class="text-button rank-button" id="btnRank" aria-label="排行榜"><svg class="icon"><use href="#i-rank"/></svg></button>
+          <button class="rank-button" id="btnRank" aria-label="打开拆家排行榜">
+            <svg class="icon"><use href="#i-rank"/></svg><span class="rank-button-text">排行榜</span>
+          </button>
           <button class="text-button help-button" id="btnHelp" aria-label="玩法说明"><svg class="icon"><use href="#i-help"/></svg></button>
         </div>
       </div>
@@ -2079,6 +2090,7 @@ module.exports = { createRenderer, configure, coreScrewPos, HEAD, BOARD_SCALE, B
         }
         // 广告领取记录与每日福利日期
         if (p.ad && typeof p.ad === 'object') d.ad = p.ad;
+        if (p.share && typeof p.share === 'object') d.share = p.share;
         if (p.lastGiftDate) d.lastGiftDate = p.lastGiftDate;
       }
     } catch (e) { /* ignore */ }
@@ -2104,6 +2116,12 @@ module.exports = { createRenderer, configure, coreScrewPos, HEAD, BOARD_SCALE, B
   function adLeft() {
     const used = profile.ad && profile.ad.date === todayKey() ? profile.ad.count : 0;
     return Math.max(0, 3 - used);
+  }
+  /** 分享得道具每日配额（3 次/天，和广告独立计次） */
+  const SHARE_DAILY = 3;
+  function shareLeft() {
+    const used = profile.share && profile.share.date === todayKey() ? profile.share.count : 0;
+    return Math.max(0, SHARE_DAILY - used);
   }
 
   /* ------------------------------ 游戏状态 ------------------------------ */
@@ -2300,7 +2318,7 @@ module.exports = { createRenderer, configure, coreScrewPos, HEAD, BOARD_SCALE, B
   $('btnHelp').addEventListener('click', showHelp);
   $('btnRoom').addEventListener('click', showRoom);
   $('btnRank').addEventListener('click', function () { showRank('region'); });
-  $('btnDesktop').addEventListener('click', () => toast('H5 原型：加入主屏幕即可离线游玩（演示文案）'));
+  $('btnDesktop').addEventListener('click', () => toast('添加到主屏幕即可离线游玩'));
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'h' || e.key === 'H') doHint(false);
@@ -2451,6 +2469,9 @@ module.exports = { createRenderer, configure, coreScrewPos, HEAD, BOARD_SCALE, B
       case 'free-ad': showAd(el.getAttribute('data-item'), false); break;
       case 'ad-revive': showAd('sweep', true); break;
       case 'ad-revive-done': closeDialog(); reviveSel = []; showLost(); break;
+      case 'share-revive': showShare('sweep', true); break;
+      case 'share-confirm': confirmShare(); break;
+      case 'share-done': closeDialog(); reviveSel = []; showLost(); break;
       case 'buy': showPay(el.getAttribute('data-item')); break;
       case 'buy-revive': showPay('sweep', true); break;
       case 'pay-confirm': confirmPay(el); break;
@@ -2495,7 +2516,7 @@ module.exports = { createRenderer, configure, coreScrewPos, HEAD, BOARD_SCALE, B
       (lv < 20 ? btn('挑战第 ' + (lv + 1) + ' 关', 'next', 'primary', 'play') : btn('回看全部关卡', 'levels', 'primary', 'levels')) +
       '<div class="action-row">' + btn('查看小屋', 'room', 'soft', 'home') + btn('重玩这一关', 'replay', 'soft', 'restart') + '</div>' +
       '</div>' +
-      '<p class="fine-print">固定四格 · 道具不改变评级成绩<br>广告与付费均为原型模拟，不产生真实扣款</p>');
+      '<p class="fine-print">固定四格 · 道具不改变评级成绩<br>广告与付费均为模拟演示，不产生真实扣款</p>');
   }
 
   function showLost() {
@@ -2510,17 +2531,22 @@ module.exports = { createRenderer, configure, coreScrewPos, HEAD, BOARD_SCALE, B
     }).join('');
     const pct = Math.round((state.matched / state.total) * 100);
     let reviveArea = '';
+    const shareQuota = shareLeft();
     if (canRevive) {
       reviveArea =
         '<p class="fine-print" style="margin-top:10px">点击上面两枚螺丝选中，把它们放回棋盘原位复活</p>' +
         (reviveSel.length === 2
           ? btn('确认复活 · 用 1 个移出道具', 'revive-confirm', 'primary', 'play')
-          : '<button class="button" style="opacity:.55" disabled>选中 2 枚螺丝后复活（剩 ' + profile.items.sweep + ' 个道具）</button>');
+          : '<button class="button" style="opacity:.55" disabled>选中 2 枚螺丝后复活（剩 ' + profile.items.sweep + ' 个道具）</button>') +
+        (shareQuota > 0 ? '<button class="rank-callout" data-action="share-revive">📤 分享给好友，再领 1 个移出（今日剩 ' + shareQuota + ' 次）</button>' : '');
     } else if (state.status === 'lost') {
       reviveArea =
-        '<button class="button primary" data-action="ad-revive">📺 看广告免费复活</button>' +
-        '<button class="button gold" data-action="buy-revive">' + icon('shop') + '¥1 购买移出并复活</button>' +
-        '<p class="fine-print">复活：看广告或购买后获得移出道具，任选两枚槽内螺丝放回棋盘原位，继续本关</p>';
+        (shareQuota > 0
+          ? '<button class="button primary" data-action="share-revive">📤 分享给好友 · 得移出×1</button>'
+          : '<button class="button" style="opacity:.55" disabled>今日分享奖励已领完</button>') +
+        '<button class="button gold" data-action="ad-revive">📺 看广告免费复活</button>' +
+        '<button class="button soft" data-action="buy-revive">' + icon('shop') + '¥1 购买移出并复活</button>' +
+        '<p class="fine-print">复活：分享、看广告或购买后获得移出道具，任选两枚槽内螺丝放回棋盘原位，继续本关</p>';
     }
     setDialog('lost',
       '<div class="dialog-mascot">🙀</div>' +
@@ -2577,7 +2603,7 @@ module.exports = { createRenderer, configure, coreScrewPos, HEAD, BOARD_SCALE, B
       '<div class="toggle-row"><span>游戏音效<small>拧动、配对与结算声音</small></span><button class="switch" role="switch" aria-label="游戏音效" aria-checked="' + profile.settings.sound + '" data-action="toggle-sound"></button></div>' +
       '<div class="toggle-row"><span>自动提示<small>停稳后30秒未操作，轻轻提醒一次</small></span><button class="switch" role="switch" aria-label="自动提示" aria-checked="' + profile.settings.autoHint + '" data-action="toggle-autohint"></button></div>' +
       '<div class="small-links"><button data-action="help">玩法说明</button><button data-action="room">我的小屋</button><button data-action="rank">排行榜</button><button data-action="shop">道具箱</button></div>' +
-      '<p class="fine-print">H5 原型 · 20关机关挑战 · 广告与付费均为模拟<br>进度仅保存在当前浏览器。</p>');
+      '<p class="fine-print">20 关机关挑战 · 广告与付费均为模拟演示<br>进度仅保存在当前浏览器。</p>');
   }
 
   function showHelp() {
@@ -2594,7 +2620,7 @@ module.exports = { createRenderer, configure, coreScrewPos, HEAD, BOARD_SCALE, B
       '<li data-n="3"><span><b>先消除，再判断满槽。</b>例如红→蓝→绿→绿，会消掉绿；红→蓝→红→蓝则四格全满，本局结束。</span></li>' +
       '<li data-n="4"><span>木板剩一个固定点会<b>惯性摆动</b>，逐渐停稳。摆动时仍可点击露出的螺丝，不必等木板停稳。</span></li>' +
       '<li data-n="5"><span>满槽后可点撤回上一步改正误点，也可重开。可连续撤回，不限次数；用时和已得家具不回退。</span></li>' +
-      '<li data-n="6"><span><b>道具帮你不改变评级。</b>「移出」把暂存槽里任选的两枚螺丝放回棋盘原位，满槽失败时还能复活；「透视」5 秒高亮所有可拆螺丝。道具在底部「道具」箱里：看广告免费领、每天登录赠送、通关奖励，也可 ¥1 买超值礼包（6 个）。</span></li>' +
+      '<li data-n="6"><span><b>道具帮你不改变评级。</b>「移出」把暂存槽里任选的两枚螺丝放回棋盘原位，满槽失败时还能复活；「透视」5 秒高亮所有可拆螺丝。道具在底部「道具」箱里：看广告免费领、分享给好友、每天登录赠送、通关奖励，也可 ¥1 买超值礼包（6 个）。</span></li>' +
       '</ol>' +
       '<h2>颜色与纹样一一对应</h2>' +
       '<div class="pattern-key">' +
@@ -2815,7 +2841,7 @@ module.exports = { createRenderer, configure, coreScrewPos, HEAD, BOARD_SCALE, B
       '<div class="rank-tabs">' + tabs + '</div>' +
       body +
       '<div class="modal-actions">' + btn('回到游戏', 'close', 'primary', 'play') + '</div>' +
-      '<p class="fine-print">原型排行使用本地演示数据 · 你的成绩真实取自本机记录<br>参考「羊了个羊」的地区战，正式版将接入云端同乡榜</p>');
+      '<p class="fine-print">排行榜使用本地演示数据 · 你的成绩真实取自本机记录<br>参考「羊了个羊」的地区战，正式版将接入云端同乡榜</p>');
   }
 
 
@@ -2855,7 +2881,7 @@ module.exports = { createRenderer, configure, coreScrewPos, HEAD, BOARD_SCALE, B
       '<span class="shop-info"><strong>超值礼包 ¥1</strong><small>移出 ×3 + 透视 ×3 · 共 6 个，相当于单个 1.7 折</small></span>' +
       '<button class="buy-button" data-action="buy" data-item="bundle">¥1 购买</button></div>' +
       '<div class="modal-actions">' + btn('回到游戏', 'close', 'primary', 'play') + '</div>' +
-      '<p class="fine-print">不花钱也能畅玩：道具来自每日福利、通关奖励和看广告<br>广告与付费均为原型模拟，正式版接入微信激励视频与支付</p>');
+      '<p class="fine-print">不花钱也能畅玩：道具来自每日福利、通关奖励、看广告和分享好友<br>广告与付费均为模拟演示，正式版接入微信激励视频与支付</p>');
   }
 
   /* 模拟激励视频：3 秒倒计时 → 道具到账 */
@@ -2872,7 +2898,7 @@ module.exports = { createRenderer, configure, coreScrewPos, HEAD, BOARD_SCALE, B
       '<div class="ad-stage"><div class="ad-mascot">📺</div>' +
       '<div class="ad-progress"><div class="ad-bar" id="adBar"></div></div>' +
       '<p class="ad-count" id="adCount">3.0 秒</p></div>' +
-      '<p class="fine-print">观看完毕即可领取 ' + mName + ' ×1<br>H5 原型模拟广告流程，正式版接入微信激励视频</p>');
+      '<p class="fine-print">观看完毕即可领取 ' + mName + ' ×1<br>正式版接入微信激励视频广告</p>');
     const t0 = Date.now();
     const DUR = 3000;
     const iv = setInterval(function () {
@@ -2898,6 +2924,47 @@ module.exports = { createRenderer, configure, coreScrewPos, HEAD, BOARD_SCALE, B
     }, 100);
   }
 
+  /* 分享给好友得道具：每次失败可领 1 份，日上限 3 次（模拟分享，正式版接 wx.shareAppMessage） */
+  let shareCtx = { item: 'sweep', revive: false };
+  function showShare(itemId, reviveAfter) {
+    if (shareLeft() <= 0) { toast('今日分享奖励已领完，明天再来'); return; }
+    if (state && state.status === 'playing') paused = true;
+    shareCtx = { item: itemId || 'sweep', revive: !!reviveAfter };
+    const mName = PROP_META[shareCtx.item] ? PROP_META[shareCtx.item].name : '道具';
+    setDialog('share',
+      closeBtn() +
+      '<div class="dialog-mascot">🤝</div>' +
+      '<h1 style="font-size:22px">分享给好友</h1>' +
+      '<p class="dialog-subtitle">分享到微信好友或群聊<br>立刻获得 ' + mName + ' ×1 · 今日还剩 ' + shareLeft() + ' 次</p>' +
+      '<div class="modal-actions">' +
+      '<button class="button primary" data-action="share-confirm">📤 分享给好友</button>' +
+      '<button class="button soft" data-action="close">先不分享</button>' +
+      '</div>' +
+      '<p class="fine-print">正式版通过微信分享卡片发放，好友点开也能领一份</p>');
+  }
+
+  function confirmShare() {
+    setDialog('share',
+      '<div class="dialog-mascot">📤</div>' +
+      '<div class="pay-spinner"></div>' +
+      '<p class="pay-wait">正在生成邀请卡片…</p>');
+    setTimeout(function () {
+      if (!dialog.open || dialog.dataset.kind !== 'share') return;
+      const item = shareCtx.item;
+      profile.items[item] = (profile.items[item] || 0) + 1;
+      profile.share = { date: todayKey(), count: (profile.share && profile.share.date === todayKey() ? profile.share.count : 0) + 1 };
+      saveProfile();
+      updateUI();
+      const mName = PROP_META[item] ? PROP_META[item].name : '道具';
+      setDialog('share',
+        '<div class="dialog-mascot">🎁</div>' +
+        '<h1>分享成功</h1>' +
+        '<p class="dialog-subtitle">' + mName + ' ×1 已放入道具箱' +
+        (shareCtx.revive ? '<br>现在去选两枚螺丝复活吧' : '<br>今日还可领 ' + shareLeft() + ' 次') + '</p>' +
+        '<div class="modal-actions">' + (shareCtx.revive ? btn('去复活', 'share-done', 'primary', 'play') : btn('收下', 'close', 'primary', 'play')) + '</div>');
+    }, 1200);
+  }
+
   function showPay(itemId, reviveAfter) {
     const m = PROP_META[itemId];
     if (!m && itemId !== 'bundle') return;
@@ -2914,7 +2981,7 @@ module.exports = { createRenderer, configure, coreScrewPos, HEAD, BOARD_SCALE, B
       '<button class="button primary" data-action="pay-confirm" data-item="' + itemId + '">确认支付 ¥1.00</button>' +
       '<button class="button soft" data-action="cancel-pay">取消</button>' +
       '</div>' +
-      '<p class="fine-print">H5 原型为模拟支付，不会真实扣款</p>');
+      '<p class="fine-print">模拟支付，不会真实扣款</p>');
   }
 
   function confirmPay(el) {
@@ -3006,6 +3073,9 @@ module.exports = { createRenderer, configure, coreScrewPos, HEAD, BOARD_SCALE, B
     sweep: (ids) => { const r = core.sweep(state, ids); if (r.ok) { renderer.reset(); for (const b of state.boards) { if (b.status === 'hinged') renderer.poses[b.id] = { x: b.x, y: b.y, angle: b.angle }; } updateUI(); } return r; },
     sweepMode: (on) => { if (on) beginSweep(); else cancelSweep(); return { mode: sweepMode, sel: sweepSel }; },
     debug: () => ({ paused, ended, sweepMode, status: state && state.status, tray: state && state.tray.length }),
+    share: (item) => { showShare(item || 'sweep', false); return { left: shareLeft() }; },
+    shareLeft: () => shareLeft(),
+    lost: () => { showLost(); return { kind: dialog.dataset.kind, canShare: !!document.querySelector('[data-action=share-revive]') }; },
     peek: () => { usePeek(); return { until: peekUntil - performance.now() }; }
   };
 })();
