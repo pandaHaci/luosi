@@ -410,7 +410,7 @@ __def("core", function (module, exports, require) {
  * 2. 螺丝挂在木板上（localX/localY），随木板一起运动（铰摆/掉落）
  * 3. 木板四态：fixed(≥2钉) → hinged(1钉,铰摆) → falling(0钉,自由落体) → gone
  * 4. 槽位语义与参考一致：按点击顺序入槽尾，只消相邻同色；先消除，再判断满槽
- * 5. 撤回不限次数；评级 = 用时 + 提示次数（无星级）
+ * 5. 撤回每关限 3 次；评级 = 用时 + 提示次数（无星级）
  *
  * 世界坐标 480x620（与参考原型一致），渲染层负责缩放。
  */
@@ -420,6 +420,7 @@ const WORLD = world.WORLD;
 const STAGE = world.STAGE;
 const TRAY_SLOTS = 4;
 const SPARE_SLOTS = 2; // 「移出」道具的配件区容量（棋盘外，随时可取回托盘）
+const UNDO_LIMIT = 3; // 每关撤回次数上限：不限次数等于免费无限复活，道具就没有价值了
 const HEAD_RADIUS = world.HEAD_RADIUS; // 螺丝头半径：完整露出才可点
 
 /** 7 色符号表（与参考原型一一对应） */
@@ -631,6 +632,8 @@ function createState(level) {
     spare: [],
     matched: 0,
     moves: 0,
+    undos: 0, // 本关已用撤回次数（不进快照，撤回本身不可被撤回）
+    undoLimit: UNDO_LIMIT,
     assists: { hint: 0 },
     status: 'playing',
     history: []
@@ -868,9 +871,17 @@ function tap(state, screwId, poseProvider) {
   return { ok: true, events };
 }
 
-/** 撤回不限次数；已通关结算不能撤回 */
+/**
+ * 撤回：每关限 UNDO_LIMIT 次，已通关结算不能撤回。
+ * 次数按「本关累计使用」计，与 history 深度无关 —— 撤回后再走一步，次数不会回来。
+ */
+function undoLeft(state) {
+  const limit = state.undoLimit === undefined ? UNDO_LIMIT : state.undoLimit;
+  return Math.max(0, limit - (state.undos || 0));
+}
+
 function canUndo(state) {
-  return state.status !== 'won' && state.history.length > 0;
+  return state.status !== 'won' && state.history.length > 0 && undoLeft(state) > 0;
 }
 
 /**
@@ -975,11 +986,15 @@ function canRescue(state, options) {
 }
 
 function undo(state) {
-  if (!canUndo(state)) return { ok: false, events: [] };
+  if (state.status === 'won') return { ok: false, reason: 'ended', events: [] };
+  if (!state.history.length) return { ok: false, reason: 'nothing', events: [] };
+  if (undoLeft(state) <= 0) return { ok: false, reason: 'limit', events: [] };
   const snap = state.history.pop();
+  // restore 不碰 undos（快照里没有这个字段），所以计数天然不会被回滚
   restore(state, snap);
   state.status = 'playing';
-  return { ok: true, events: [{ type: 'undo' }] };
+  state.undos = (state.undos || 0) + 1;
+  return { ok: true, events: [{ type: 'undo' }], left: undoLeft(state) };
 }
 
 /* ----------------------------- 求解器（验证/提示） ----------------------------- */
@@ -1065,6 +1080,7 @@ module.exports = {
   WORLD,
   TRAY_SLOTS,
   SPARE_SLOTS,
+  UNDO_LIMIT,
   HEAD_RADIUS,
   COLORS,
   rad,
@@ -1083,6 +1099,7 @@ module.exports = {
   tap,
   undo,
   canUndo,
+  undoLeft,
   sweep,
   takeSpare,
   canRescue,
@@ -2356,7 +2373,8 @@ module.exports = { createRenderer, configure, coreScrewPos, HEAD, BOARD_SCALE, B
     trayEl.textContent = '暂存 ' + state.tray.length + ' / 4 · 从左往右放';
     trayEl.classList.toggle('danger', state.tray.length >= 3 && state.status === 'playing');
     $('btnUndo').disabled = !core.canUndo(state);
-    $('undoLabel').textContent = core.canUndo(state) ? '可退 ' + state.history.length + ' 步' : '无可撤回';
+    const uLeft = core.undoLeft(state);
+    $('undoLabel').textContent = uLeft <= 0 ? '本关已用完' : '剩 ' + uLeft + ' 次';
     $('roomCount').textContent = profile.cleared.length + ' / 20';
     if (state.moves > 0) $('boardHint').classList.add('hidden');
     // 道具箱徽章（移出+透视总数）
@@ -2503,7 +2521,10 @@ module.exports = { createRenderer, configure, coreScrewPos, HEAD, BOARD_SCALE, B
   $('btnUndo').addEventListener('click', () => {
     if (!state || ended) return;
     const res = core.undo(state);
-    if (!res.ok) return;
+    if (!res.ok) {
+      if (res.reason === 'limit') toast('本关撤回次数已用完（' + core.UNDO_LIMIT + ' 次），可重开本关');
+      return;
+    }
     renderer.reset();
     // 恢复铰摆板到落定位
     for (const b of state.boards) {
@@ -2511,6 +2532,7 @@ module.exports = { createRenderer, configure, coreScrewPos, HEAD, BOARD_SCALE, B
     }
     clearHint();
     updateUI();
+    if (state.undos === state.undoLimit) toast('本关撤回次数已用完，再点错只能重开');
   });
 
   $('btnHint').addEventListener('click', () => doHint(false));
@@ -2655,6 +2677,7 @@ module.exports = { createRenderer, configure, coreScrewPos, HEAD, BOARD_SCALE, B
       case 'pick-region': regionPicking = true; showRank('region'); break;
       case 'set-region': profile.region = el.getAttribute('data-region'); regionPicking = false; saveProfile(); showRank('region'); break;
       case 'undo':
+        if (!core.canUndo(state)) { toast('本关撤回次数已用完，重开本关吧'); break; }
         closeDialog();
         ended = false;
         $('btnUndo').click();
@@ -2757,7 +2780,7 @@ module.exports = { createRenderer, configure, coreScrewPos, HEAD, BOARD_SCALE, B
     } else if (hopeless) {
       reviveArea =
         '<div class="hopeless-note">槽里的螺丝互相卡死了：同色被别的颜色隔开，再移出也配不成对子。</div>' +
-        '<p class="fine-print">道具救不回这一局，撤回上一步或重开更快。</p>';
+        '<p class="fine-print">' + (core.canUndo(state) ? '道具救不回这一局，撤回上一步或重开更快。' : '道具救不回这一局，撤回次数也已用完，只能重开本关。') + '</p>';
     } else if (canRevive) {
       reviveArea =
         '<p class="fine-print" style="margin-top:10px">点选两枚螺丝，它们会移到棋盘外的配件区，随时能取回</p>' +
@@ -2782,7 +2805,11 @@ module.exports = { createRenderer, configure, coreScrewPos, HEAD, BOARD_SCALE, B
       (canRevive && !hopeless ? '' : '<p class="fine-print">进入顺序 → 最后一枚已描边</p>') +
       '<div class="modal-actions">' +
       reviveArea +
-      (state.history.length ? btn(hopeless ? '撤回上一步（免费）' : '撤回上一步', 'undo', reviveArea ? 'soft' : 'primary', 'restart') : '') +
+      (state.history.length
+        ? (core.canUndo(state)
+          ? btn('撤回上一步 · 剩 ' + core.undoLeft(state) + ' 次', 'undo', reviveArea ? 'soft' : 'primary', 'restart')
+          : '<button class="button" style="opacity:.55" disabled>撤回次数已用完（每关 ' + core.UNDO_LIMIT + ' 次）</button>')
+        : '') +
       btn('重新开始本关', 'replay', !reviveArea && state.history.length ? 'soft' : 'primary', 'restart') +
       '<div class="action-row">' + btn('返回关卡', 'levels', 'soft', 'levels') + '</div>' +
       '</div>');
@@ -2845,7 +2872,7 @@ module.exports = { createRenderer, configure, coreScrewPos, HEAD, BOARD_SCALE, B
       '<li data-n="2"><span>新螺丝按点击顺序放到槽尾。只有<b>紧邻的两枚同色</b>才能消除，不排序、不隔色配对。</span></li>' +
       '<li data-n="3"><span><b>先消除，再判断满槽。</b>例如红→蓝→绿→绿，会消掉绿；红→蓝→红→蓝则四格全满，本局结束。</span></li>' +
       '<li data-n="4"><span>木板剩一个固定点会<b>惯性摆动</b>，逐渐停稳。摆动时仍可点击露出的螺丝，不必等木板停稳。</span></li>' +
-      '<li data-n="5"><span>满槽后可点撤回上一步改正误点，也可重开。可连续撤回，不限次数；用时和已得家具不回退。</span></li>' +
+      '<li data-n="5"><span>满槽后可点撤回上一步改正误点，也可重开。<b>撤回每关限 3 次</b>，用完后只能重开本关；已消除的进度、用时和已得家具不会回退。</span></li>' +
       '<li data-n="6"><span><b>道具帮你不改变评级。</b>「移出」把暂存槽里任选的两枚螺丝移到棋盘外的「配件区」，腾出格子，随时可以点回来；满槽失败时还能用来复活；「透视」5 秒高亮所有可拆螺丝。道具在底部「道具」箱里：看广告免费领、分享给好友、每天登录赠送、通关奖励，也可 ¥1 买超值礼包（6 个）。</span></li>' +
       '</ol>' +
       '<h2>颜色与纹样一一对应</h2>' +
@@ -3294,8 +3321,8 @@ module.exports = { createRenderer, configure, coreScrewPos, HEAD, BOARD_SCALE, B
     renderer: () => renderer,
     poses: () => renderer.poses,
     swings: () => renderer.swings,
-    undo: () => { $('btnUndo').click(); return { ok: true, tray: state.tray.length }; },
-    status: () => ({ tray: state.tray.length, matched: state.matched, total: state.total, status: state.status, hints: state.assists.hint }),
+    undo: () => { const before = core.undoLeft(state); $('btnUndo').click(); return { ok: core.undoLeft(state) < before, left: core.undoLeft(state) }; },
+    status: () => ({ tray: state.tray.length, matched: state.matched, total: state.total, status: state.status, hints: state.assists.hint, undos: state.undos, undoLeft: core.undoLeft(state) }),
     items: () => profile.items,
     buy: (key, n) => { profile.items[key] = (profile.items[key] || 0) + (n || 1); saveProfile(); updateUI(); return profile.items; },
     sweep: (ids) => {
