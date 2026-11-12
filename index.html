@@ -131,6 +131,7 @@ dialog::backdrop{background:#3c4b4866}
 .lost-tray span:last-child,.lost-tray button:last-child{outline:3px solid #9d3925;outline-offset:3px}
 .lost-tray button{cursor:pointer}
 .lost-tray button.picked{outline:3px solid #2f7d54 !important;outline-offset:3px;transform:translateY(2px)}
+.hopeless-note{margin:14px 0 6px;padding:11px 14px;border-radius:12px;background:#f7ece2;border:1px solid #ddbfa4;color:#8a4a2c;font-size:13px;line-height:1.55;text-align:center}
 .unlock-grid{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin:14px 0 4px}
 .unlock-chip{font-size:11px;padding:4px 9px;border-radius:20px;background:#eee9dd;color:#b9ab96}
 .unlock-chip.owned{background:#d8e5ba;color:#4e6b52;font-weight:700}
@@ -359,6 +360,12 @@ const HOUSE = { left: 126, top: 32, right: 354, floor: 390, width: 228, height: 
 /** 槽位：4 格，从左往右 */
 const SLOT = { y: 565, x0: 108, gap: 88, count: 4 };
 
+/**
+ * 「移出」道具的配件区：暂存槽正上方 2 格，位于棋盘之外。
+ * 取出的螺丝停在这里，不受任何木板遮挡，随时可以点回暂存槽。
+ */
+const SPARE = { y: 480, x0: 196, gap: 88, count: 2, r: 21 };
+
 /** 漏斗底座 */
 const FUNNEL = { x: 14, y: 516, w: 452, h: 98, r: 14 };
 
@@ -384,6 +391,7 @@ module.exports = {
   STAGE_CLIP,
   HOUSE,
   SLOT,
+  SPARE,
   FUNNEL,
   HEAD_RADIUS,
   toScreen,
@@ -411,6 +419,7 @@ const world = require('./world');
 const WORLD = world.WORLD;
 const STAGE = world.STAGE;
 const TRAY_SLOTS = 4;
+const SPARE_SLOTS = 2; // 「移出」道具的配件区容量（棋盘外，随时可取回托盘）
 const HEAD_RADIUS = world.HEAD_RADIUS; // 螺丝头半径：完整露出才可点
 
 /** 7 色符号表（与参考原型一一对应） */
@@ -513,6 +522,37 @@ function clone(obj) {
 }
 
 /**
+ * 搜索专用浅层快照：丢掉 history（撤回栈可能有几十份完整棋盘），
+ * boards / screws 只做一层对象拷贝，points、screwIds 在搜索中只读，共享引用即可。
+ * JSON 深拷贝在 60+ 钉的关卡上单次要 10ms 级，DFS 里会被放大到几百毫秒。
+ */
+function cloneForSearch(s) {
+  const boards = new Array(s.boards.length);
+  for (let i = 0; i < s.boards.length; i++) boards[i] = Object.assign({}, s.boards[i]);
+  const screws = new Array(s.screws.length);
+  for (let i = 0; i < s.screws.length; i++) screws[i] = Object.assign({}, s.screws[i]);
+  return {
+    levelId: s.levelId,
+    chapter: s.chapter,
+    name: s.name,
+    difficulty: s.difficulty,
+    focus: s.focus,
+    capacity: s.capacity,
+    spareCapacity: s.spareCapacity,
+    total: s.total,
+    boards,
+    screws,
+    tray: s.tray.slice(),
+    spare: s.spare.slice(),
+    matched: s.matched,
+    moves: s.moves,
+    assists: { hint: s.assists ? s.assists.hint : 0 },
+    status: s.status,
+    history: []
+  };
+}
+
+/**
  * 生成初始状态
  * 关卡 schema：
  * {
@@ -567,7 +607,7 @@ function createState(level) {
     localY: s.localY,
     anchorX: 0,
     anchorY: 0,
-    place: 'board' // board | tray | matched
+    place: 'board' // board | tray | spare | matched
   }));
   // 预填锚点（静止位姿下的世界坐标）
   screws.forEach((s) => {
@@ -583,10 +623,12 @@ function createState(level) {
     difficulty: level.difficulty || '',
     focus: level.focus || '',
     capacity: TRAY_SLOTS,
+    spareCapacity: SPARE_SLOTS,
     total: screws.length,
     boards,
     screws,
     tray: [],
+    spare: [],
     matched: 0,
     moves: 0,
     assists: { hint: 0 },
@@ -693,6 +735,7 @@ function snapshot(state) {
     })),
     screws: state.screws.map((s) => ({ id: s.id, place: s.place, anchorX: s.anchorX, anchorY: s.anchorY })),
     tray: state.tray.slice(),
+    spare: state.spare.slice(),
     matched: state.matched,
     moves: state.moves,
     status: state.status
@@ -713,27 +756,32 @@ function restore(state, snap) {
     }
   });
   state.tray = snap.tray.slice();
+  state.spare = snap.spare ? snap.spare.slice() : [];
   state.matched = snap.matched;
   state.moves = snap.moves;
   state.status = snap.status;
 }
 
 /**
- * 消除相邻同色（与参考原型一致：只比较「槽尾新放入的那一对」）
+ * 消除相邻同色（与参考原型一致：只比较「槽尾相邻的两枚」）
  * 槽位从左往右放，新螺丝永远在最右，因此只需检查最后两格。
+ * 用循环而非 if：移出道具把中间的螺丝拿走后，两侧同色会重新相邻，需要连续收敛。
  */
 function resolveTray(state, events) {
-  const n = state.tray.length;
-  if (n < 2) return;
-  const a = state.tray[n - 2];
-  const b = state.tray[n - 1];
-  if (colorOf(state, a) !== colorOf(state, b)) return;
-  screwOf(state, a).place = 'matched';
-  screwOf(state, b).place = 'matched';
-  state.tray.pop();
-  state.tray.pop();
-  state.matched += 2;
-  events.push({ type: 'match', screws: [a, b], color: colorOf(state, a) });
+  let guard = 0;
+  while (state.tray.length >= 2 && guard++ < 8) {
+    const n = state.tray.length;
+    const a = state.tray[n - 2];
+    const b = state.tray[n - 1];
+    if (colorOf(state, a) !== colorOf(state, b)) break;
+    screwOf(state, a).place = 'matched';
+    screwOf(state, b).place = 'matched';
+    state.tray.pop();
+    state.tray.pop();
+    state.matched += 2;
+    // 带上原槽位索引：移出道具触发连锁消除时，槽位会连续变化，渲染层不能靠推导
+    events.push({ type: 'match', screws: [a, b], color: colorOf(state, a), slots: [n - 2, n - 1] });
+  }
 }
 
 /**
@@ -826,50 +874,104 @@ function canUndo(state) {
 }
 
 /**
- * 道具「移出」：把暂存槽里指定的螺丝（一次至多 2 枚）放回棋盘原位。
- * - playing 中使用：给槽位腾地方，螺丝回到原板原孔
+ * 道具「移出」：把暂存槽里指定的螺丝（一次至多 2 枚）挪到棋盘外的「配件区」。
+ * - playing 中使用：给槽位腾地方
  * - 满槽失败后使用（复活）：同一函数，status 恢复 playing
  * - 使用前压栈快照，撤回可回退道具效果
- * 被放回螺丝的木板恢复初始位姿后重算状态机（fixed/hinged/gone）。
+ *
+ * 为什么不再「放回棋盘原位」：实测失败局面里约 13.6% 的原孔位已被别的板压住，
+ * 螺丝放回去就点不回来，玩家花了道具反而更堵。配件区在棋盘之外，随时能取回托盘。
+ *
+ * 另外一个必做动作：螺丝离开托盘后，原本被它隔开的同色会重新相邻，
+ * 必须重跑消除判定（旧版漏了这步，导致 [A,B,A] 移出 B 后 [A,A] 并排却不消）。
  */
 function sweep(state, ids) {
   const events = [];
-  if (state.status === 'won') return { ok: false, reason: 'ended', events };
+  if (state.status !== 'playing' && state.status !== 'lost') {
+    return { ok: false, reason: 'ended', events };
+  }
   const picked = [];
   (ids || []).forEach((id) => {
     if (state.tray.indexOf(id) !== -1 && picked.indexOf(id) === -1) picked.push(id);
   });
   if (!picked.length) return { ok: false, reason: 'not-in-tray', events };
-  if (picked.length > 2) return { ok: false, reason: 'too-many', events };
+  if (picked.length > SPARE_SLOTS) return { ok: false, reason: 'too-many', events };
+  if (state.spare.length + picked.length > state.spareCapacity) {
+    return { ok: false, reason: 'spare-full', events };
+  }
 
-  state.history.push(snapshot(state));
   const revived = state.status === 'lost';
+  state.history.push(snapshot(state));
   picked.forEach((id) => {
     state.tray.splice(state.tray.indexOf(id), 1);
-    screwOf(state, id).place = 'board';
+    screwOf(state, id).place = 'spare';
+    state.spare.push(id);
   });
-  // 受影响木板：复位到初始位姿，再让状态机重新收敛
-  const touched = {};
-  picked.forEach((id) => { touched[screwOf(state, id).board] = 1; });
-  Object.keys(touched).forEach((bid) => {
-    const b = boardOf(state, bid);
-    b.x = b.baseX;
-    b.y = b.baseY;
-    b.cx = b.baseX;
-    b.cy = b.baseY;
-    b.angle = b.baseAngle;
-    b.omega = 0;
-    b.vx = 0;
-    b.vy = 0;
-    b.fallAge = 0;
-    b.pinId = null;
-    // 掉落的板是状态机终态（resolveBoards 跳过 gone），先复位再让它重新收敛
-    b.status = 'fixed';
-  });
-  resolveBoards(state, events);
+  // 关键：中间的螺丝被拿走，两侧同色可能重新相邻
+  resolveTray(state, events);
   state.status = 'playing';
   events.push({ type: 'sweep', screws: picked });
-  return { ok: true, events, restored: picked.length, revived };
+  return { ok: true, events, moved: picked.length, restored: picked.length, revived };
+}
+
+/**
+ * 把配件区里的螺丝放回暂存槽（等价于再点它一次）。
+ * 槽满时拒绝，让玩家先把槽内消化掉。
+ */
+function takeSpare(state, screwId) {
+  const events = [];
+  if (state.status !== 'playing') return { ok: false, reason: 'ended', events };
+  const idx = state.spare.indexOf(screwId);
+  if (idx === -1) return { ok: false, reason: 'not-in-spare', events };
+  if (state.tray.length >= state.capacity) return { ok: false, reason: 'tray-full', events };
+
+  state.history.push(snapshot(state));
+  state.spare.splice(idx, 1);
+  const screw = screwOf(state, screwId);
+  screw.place = 'tray';
+  state.tray.push(screwId);
+  state.moves += 1;
+  events.push({ type: 'pick', screw: screwId, color: screw.color, fromSpare: true });
+
+  resolveTray(state, events);
+  if (state.matched >= state.total) {
+    state.status = 'won';
+    events.push({ type: 'win' });
+  } else if (state.tray.length >= state.capacity) {
+    state.status = 'lost';
+    events.push({ type: 'lose', reason: 'tray-full' });
+  }
+  return { ok: true, events };
+}
+
+/**
+ * 失败局面还有没有救：枚举「移出组合」，逐个尝试后续是否可解。
+ * 用于失败弹窗决定该卖复活道具、还是直接劝玩家重开。
+ * @returns {{ok:boolean, combo?:string[], nodes?:number, reason?:string}}
+ */
+function canRescue(state, options) {
+  const maxNodes = (options && options.maxNodes) || 6000;
+  const budgetMs = (options && options.budgetMs) || 200;
+  const deadline = Date.now() + budgetMs;
+  if (!state || state.status !== 'lost') return { ok: false, reason: 'not-lost' };
+  const tray = state.tray.slice();
+  // 先试移出 2 枚（腾两格，最容易救），再退到 1 枚
+  const combos = [];
+  for (let i = 0; i < tray.length; i++) {
+    for (let j = i + 1; j < tray.length; j++) combos.push([tray[i], tray[j]]);
+  }
+  for (let i = 0; i < tray.length; i++) combos.push([tray[i]]);
+
+  for (let k = 0; k < combos.length; k++) {
+    if (Date.now() > deadline) return { ok: false, reason: 'timeout' };
+    const st = cloneForSearch(state);
+    const r = sweep(st, combos[k]);
+    if (!r.ok) continue;
+    const s = solve(st, { maxNodes, deadline });
+    if (s.solvable) return { ok: true, combo: combos[k], nodes: s.nodes };
+    if (s.timedOut) return { ok: false, reason: 'timeout' };
+  }
+  return { ok: false, reason: 'no-rescue' };
 }
 
 function undo(state) {
@@ -885,18 +987,33 @@ function undo(state) {
 function stateKey(state, poses) {
   const boardBits = state.boards.map((b) => (b.status === 'gone' ? '0' : '1')).join('');
   const screwBits = state.screws.map((s) => (s.place === 'board' ? '1' : '0')).join('');
-  return boardBits + '|' + screwBits + '|' + trayColors(state).join(',');
+  // 配件区是集合语义，顺序不影响后续，排序后再入 key，避免重复搜索
+  const spareKey = state.spare.slice().sort().join(',');
+  return boardBits + '|' + screwBits + '|' + trayColors(state).join(',') + '|' + spareKey;
 }
 
 /**
  * DFS 求解。启发式：优先点「槽尾能立刻消除」的，其次槽内有同色、能清板的。
  * 大关卡（>30 钉）只用来做提示 fallback，验证以参考解回放为准。
+ * 配件区里的螺丝也是合法候选（takeSpare），否则复活后的局面会被误判无解。
  */
 function solve(state, options) {
   const maxNodes = (options && options.maxNodes) || 200000;
+  const deadline = (options && options.deadline) || 0; // 绝对时间戳，0 表示不限
   const seen = new Set();
   const route = [];
   let nodes = 0;
+  let timedOut = false;
+
+  function candidates(cur) {
+    const list = availableScrews(cur).map((s) => ({
+      id: s.id, color: s.color, board: s.board, fromSpare: false
+    }));
+    if (cur.spare.length && cur.tray.length < cur.capacity) {
+      cur.spare.forEach((id) => list.push({ id, color: colorOf(cur, id), board: null, fromSpare: true }));
+    }
+    return list;
+  }
 
   function order(cur, list) {
     const tray = trayColors(cur);
@@ -909,7 +1026,7 @@ function solve(state, options) {
         let score = 0;
         if (tray.length && tray[tray.length - 1] === s.color) score -= 100;
         else if (tray.includes(s.color)) score -= 60;
-        if (boardCount[s.board] === 1) score -= 40;
+        if (s.board && boardCount[s.board] === 1) score -= 40;
         return { s, score };
       })
       .sort((a, b) => a.score - b.score)
@@ -923,12 +1040,14 @@ function solve(state, options) {
     if (seen.has(key)) return false;
     seen.add(key);
     if (++nodes > maxNodes) return false;
+    // 每个节点都看一次时钟：大关卡单节点（availableScrews）本身就要几十毫秒，
+    // 隔几个节点才检查会让预算形同虚设。
+    if (deadline && Date.now() > deadline) { timedOut = true; return false; }
 
-    const list = order(cur, availableScrews(cur));
+    const list = order(cur, candidates(cur));
     for (let i = 0; i < list.length; i++) {
-      const next = clone(cur);
-      next.history = [];
-      const res = tap(next, list[i].id);
+      const next = cloneForSearch(cur);
+      const res = list[i].fromSpare ? takeSpare(next, list[i].id) : tap(next, list[i].id);
       if (!res.ok) continue;
       route.push(list[i].id);
       if (dfs(next)) return true;
@@ -937,15 +1056,15 @@ function solve(state, options) {
     return false;
   }
 
-  const start = clone(state);
-  start.history = [];
+  const start = cloneForSearch(state);
   const ok = dfs(start);
-  return { solvable: ok, route: ok ? route.slice() : [], nodes };
+  return { solvable: ok, route: ok ? route.slice() : [], nodes, timedOut };
 }
 
 module.exports = {
   WORLD,
   TRAY_SLOTS,
+  SPARE_SLOTS,
   HEAD_RADIUS,
   COLORS,
   rad,
@@ -965,6 +1084,8 @@ module.exports = {
   undo,
   canUndo,
   sweep,
+  takeSpare,
+  canRescue,
   solve,
   snapshot,
   restore
@@ -1177,6 +1298,7 @@ const BOARD_Y = world.BOARD_Y;
 const STAGE_CLIP = world.STAGE_CLIP;
 const HOUSE = world.HOUSE;
 const SLOT = world.SLOT;
+const SPARE = world.SPARE;
 const FUNNEL = world.FUNNEL;
 
 let COLORS = [];
@@ -1276,6 +1398,10 @@ function colorOf(id) {
 
 function slotAt(index) {
   return { x: SLOT.x0 + index * SLOT.gap, y: SLOT.y };
+}
+
+function spareAt(index) {
+  return { x: SPARE.x0 + index * SPARE.gap, y: SPARE.y };
 }
 
 /* ----------------------------- 渲染器 ----------------------------- */
@@ -1378,11 +1504,13 @@ function createRenderer(ctx, opts) {
         r.swings[b.id].x = c.x;
         r.swings[b.id].y = c.y;
       } else if (ev.type === 'match') {
-        // 消除动画：core 已把两枚移出槽位，这里取它们的原槽位坐标
+        // 消除动画：core 已把两枚移出槽位。优先用事件里带的原槽位索引——
+        // 移出道具可能一次触发连锁消除，靠 tray.length 反推会错位。
         if (!r.matches) r.matches = [];
-        const n = state.tray.length + 2;
-        const p1 = slotAt(n - 2);
-        const p2 = slotAt(n - 1);
+        const i1 = ev.slots ? ev.slots[0] : state.tray.length;
+        const i2 = ev.slots ? ev.slots[1] : state.tray.length + 1;
+        const p1 = slotAt(i1);
+        const p2 = slotAt(i2);
         r.matches.push({
           x1: p1.x,
           y1: p1.y,
@@ -1834,6 +1962,56 @@ function createRenderer(ctx, opts) {
     return null;
   };
 
+  /**
+   * 「移出」配件区：棋盘外的 2 个悬停位。
+   * 取出的螺丝停在这里，不受任何木板遮挡，随时可以点回暂存槽。
+   */
+  r.drawSpare = function (state, o) {
+    o = o || {};
+    const ctx = r.ctx;
+    const n = state && state.spare ? state.spare.length : 0;
+    if (!n) return;
+    const t = o.now || now();
+    for (let i = 0; i < SPARE.count; i++) {
+      const p = spareAt(i);
+      ctx.save();
+      ctx.setLineDash([5, 4]);
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, SPARE.r + 5, 0, TAU);
+      ctx.strokeStyle = i < n ? 'rgba(166,121,69,0.62)' : 'rgba(166,121,69,0.28)';
+      ctx.lineWidth = 1.6;
+      ctx.stroke();
+      ctx.restore();
+
+      if (i >= n) continue;
+      const screw = state.screws.find((s) => s.id === state.spare[i]);
+      if (!screw) continue;
+      r.drawScrew(ctx, p.x, p.y, screw.color, { radius: 19 });
+      // 可点呼吸圈：告诉玩家这枚可以取回托盘
+      if (state.status === 'playing') {
+        const pulse = 0.5 + 0.5 * Math.sin(t / 380 + i);
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 24 + pulse * 3, 0, TAU);
+        ctx.strokeStyle = 'rgba(255,255,255,' + (0.28 + 0.4 * pulse).toFixed(3) + ')';
+        ctx.lineWidth = 2.2;
+        ctx.stroke();
+      }
+    }
+    text(ctx, '配件区', SPARE.x0 + SPARE.gap / 2, SPARE.y - SPARE.r - 16, 11, '#8a6b47', 700);
+  };
+
+  /** 配件区命中测试（与托盘同属渲染空间） */
+  r.spareHitTest = function (state, px, py) {
+    if (!state || !state.spare || !state.spare.length) return null;
+    const x = (px - r.ox) / r.scale;
+    const y = (py - r.oy) / r.scale;
+    for (let i = state.spare.length - 1; i >= 0; i--) {
+      const s = spareAt(i);
+      if (Math.hypot(x - s.x, y - s.y) <= SPARE.r + 8) return state.spare[i];
+    }
+    return null;
+  };
+
   /** 槽内同色消除：两球合拢 → 碰撞爆裂（扩散环 + 粒子 + 闪光） */
   r.drawMatches = function () {
     const ctx = r.ctx;
@@ -1983,6 +2161,7 @@ function createRenderer(ctx, opts) {
     ctx.restore(); // 板区
 
     r.drawFunnel(state);
+    r.drawSpare(state, { now: t });
     r.drawTray(state, { sweepPick: o.sweepPick, now: t });
     r.drawMatches();
     if (state.status === 'won') r.drawWinSparkles({ now: t, reduced: o.reduced });
@@ -2140,6 +2319,9 @@ module.exports = { createRenderer, configure, coreScrewPos, HEAD, BOARD_SCALE, B
   let sweepSel = [];
   let peekUntil = 0;
   let reviveSel = [];
+  // 失败局面「还有没有救」的判定缓存（key 由关卡+步数+槽内容组成）
+  let rescueCache = null;
+  let rescuePending = false;
 
   function startLevel(n) {
     const level = getLevel(n) || getLevel(1);
@@ -2152,6 +2334,8 @@ module.exports = { createRenderer, configure, coreScrewPos, HEAD, BOARD_SCALE, B
     sweepMode = false;
     sweepSel = [];
     peekUntil = 0;
+    reviveSel = [];
+    rescueCache = null;
     lastWinReward = '';
     renderer.reset();
     closeDialog();
@@ -2231,6 +2415,22 @@ module.exports = { createRenderer, configure, coreScrewPos, HEAD, BOARD_SCALE, B
       if (sweepSel.length === 2) executeSweep(sweepSel.slice());
       return;
     }
+    // 配件区：点一下把这枚螺丝取回暂存槽（不受棋盘遮挡，随时可用）
+    const spareId = renderer.spareHitTest(state, x, y);
+    if (spareId) {
+      const rs = core.takeSpare(state, spareId);
+      if (!rs.ok) {
+        if (rs.reason === 'tray-full') toast('暂存槽满了，先消掉两枚再来取');
+        return;
+      }
+      idleSince = performance.now();
+      clearHint();
+      renderer.sync(state, rs.events);
+      updateUI();
+      if (state.status === 'won') onWin();
+      else if (state.status === 'lost') onLose();
+      return;
+    }
     const id = renderer.hitTest(state, x, y);
     if (!id) return;
     idleSince = performance.now();
@@ -2259,10 +2459,11 @@ module.exports = { createRenderer, configure, coreScrewPos, HEAD, BOARD_SCALE, B
     if (state.status !== 'playing') return;
     if (profile.items.sweep <= 0) { showShop('sweep'); return; }
     if (state.tray.length < 2) { toast('暂存槽不足两枚，先用不上移出'); return; }
+    if (state.spare.length >= 2) { toast('配件区已满，先把里面两枚放回暂存槽'); return; }
     sweepMode = true;
     sweepSel = [];
     clearHint();
-    showInline('点选暂存槽里要移出的两枚螺丝，再点一次取消选中');
+    showInline('点选暂存槽里要移出的螺丝，它们会停到棋盘外的配件区，随时能取回来');
   }
 
   function executeSweep(ids) {
@@ -2273,12 +2474,14 @@ module.exports = { createRenderer, configure, coreScrewPos, HEAD, BOARD_SCALE, B
     sweepMode = false;
     sweepSel = [];
     renderer.reset();
+    // 移出后原本被隔开的同色会重新相邻而消除，这条动画不能丢
+    renderer.sync(state, res.events);
     for (const b of state.boards) {
       if (b.status === 'hinged') renderer.poses[b.id] = { x: b.x, y: b.y, angle: b.angle };
     }
     clearHint();
     updateUI();
-    toast('已把 ' + res.restored + ' 枚螺丝放回棋盘，可撤回');
+    toast('已移出 ' + res.moved + ' 枚到配件区，可随时取回或撤回');
   }
 
   function usePeek() {
@@ -2520,21 +2723,44 @@ module.exports = { createRenderer, configure, coreScrewPos, HEAD, BOARD_SCALE, B
   }
 
   function showLost() {
+    const key = state.levelId + '|' + state.moves + '|' + state.tray.join(',');
+    const cached = rescueCache && rescueCache.key === key ? rescueCache.result : null;
+    if (!cached && !rescuePending) {
+      rescuePending = true;
+      // 判定要跑一次有限搜索，先让弹窗出来，算完再补（大关卡约 200ms）
+      setTimeout(function () {
+        rescuePending = false;
+        if (!state || state.status !== 'lost' || dialog.dataset.kind !== 'lost') return;
+        rescueCache = {
+          key: state.levelId + '|' + state.moves + '|' + state.tray.join(','),
+          result: core.canRescue(state)
+        };
+        showLost();
+      }, 40);
+    }
+    const rescue = cached;
+    const hopeless = !!rescue && rescue.reason === 'no-rescue';
     const canRevive = state.status === 'lost' && profile.items.sweep > 0;
     reviveSel = reviveSel.filter((id) => state.tray.indexOf(id) !== -1).slice(0, 2);
     const trayHtml = state.tray.map((id, i) => {
       const s = core.screwOf(state, id);
       const c = COLORS[s.color];
       const picked = reviveSel.indexOf(id) !== -1;
-      const act = canRevive ? ' data-action="revive-pick" data-screw="' + id + '"' : '';
+      const act = canRevive && !hopeless ? ' data-action="revive-pick" data-screw="' + id + '"' : '';
       return '<button class="lost-tray-slot' + (picked ? ' picked' : '') + '"' + act + ' style="--dot:' + c.fill + '" aria-label="第' + (i + 1) + '格 ' + c.name + c.symbol + '">' + c.symbol + '</button>';
     }).join('');
     const pct = Math.round((state.matched / state.total) * 100);
     let reviveArea = '';
     const shareQuota = shareLeft();
-    if (canRevive) {
+    if (!rescue) {
+      reviveArea = '<p class="fine-print">正在确认这局还有没有救…</p>';
+    } else if (hopeless) {
       reviveArea =
-        '<p class="fine-print" style="margin-top:10px">点击上面两枚螺丝选中，把它们放回棋盘原位复活</p>' +
+        '<div class="hopeless-note">槽里的螺丝互相卡死了：同色被别的颜色隔开，再移出也配不成对子。</div>' +
+        '<p class="fine-print">道具救不回这一局，撤回上一步或重开更快。</p>';
+    } else if (canRevive) {
+      reviveArea =
+        '<p class="fine-print" style="margin-top:10px">点选两枚螺丝，它们会移到棋盘外的配件区，随时能取回</p>' +
         (reviveSel.length === 2
           ? btn('确认复活 · 用 1 个移出道具', 'revive-confirm', 'primary', 'play')
           : '<button class="button" style="opacity:.55" disabled>选中 2 枚螺丝后复活（剩 ' + profile.items.sweep + ' 个道具）</button>') +
@@ -2546,17 +2772,17 @@ module.exports = { createRenderer, configure, coreScrewPos, HEAD, BOARD_SCALE, B
           : '<button class="button" style="opacity:.55" disabled>今日分享奖励已领完</button>') +
         '<button class="button gold" data-action="ad-revive">📺 看广告免费复活</button>' +
         '<button class="button soft" data-action="buy-revive">' + icon('shop') + '¥1 购买移出并复活</button>' +
-        '<p class="fine-print">复活：分享、看广告或购买后获得移出道具，任选两枚槽内螺丝放回棋盘原位，继续本关</p>';
+        '<p class="fine-print">复活后选两枚螺丝移到配件区，它们停在那里随时可取回，不会卡在棋盘上</p>';
     }
     setDialog('lost',
       '<div class="dialog-mascot">🙀</div>' +
-      '<h1>四格已满</h1>' +
+      '<h1>' + (hopeless ? '四格已满 · 这局卡死了' : '四格已满') + '</h1>' +
       '<p class="loss-progress">已消除 ' + state.matched + ' / ' + state.total + ' 枚 · ' + pct + '%</p>' +
       '<div class="lost-tray" aria-label="失败时的暂存顺序">' + trayHtml + '</div>' +
-      (canRevive ? '' : '<p class="fine-print">进入顺序 → 最后一枚已描边</p>') +
+      (canRevive && !hopeless ? '' : '<p class="fine-print">进入顺序 → 最后一枚已描边</p>') +
       '<div class="modal-actions">' +
       reviveArea +
-      (state.history.length ? btn('撤回上一步', 'undo', reviveArea ? 'soft' : 'primary', 'restart') : '') +
+      (state.history.length ? btn(hopeless ? '撤回上一步（免费）' : '撤回上一步', 'undo', reviveArea ? 'soft' : 'primary', 'restart') : '') +
       btn('重新开始本关', 'replay', !reviveArea && state.history.length ? 'soft' : 'primary', 'restart') +
       '<div class="action-row">' + btn('返回关卡', 'levels', 'soft', 'levels') + '</div>' +
       '</div>');
@@ -2620,7 +2846,7 @@ module.exports = { createRenderer, configure, coreScrewPos, HEAD, BOARD_SCALE, B
       '<li data-n="3"><span><b>先消除，再判断满槽。</b>例如红→蓝→绿→绿，会消掉绿；红→蓝→红→蓝则四格全满，本局结束。</span></li>' +
       '<li data-n="4"><span>木板剩一个固定点会<b>惯性摆动</b>，逐渐停稳。摆动时仍可点击露出的螺丝，不必等木板停稳。</span></li>' +
       '<li data-n="5"><span>满槽后可点撤回上一步改正误点，也可重开。可连续撤回，不限次数；用时和已得家具不回退。</span></li>' +
-      '<li data-n="6"><span><b>道具帮你不改变评级。</b>「移出」把暂存槽里任选的两枚螺丝放回棋盘原位，满槽失败时还能复活；「透视」5 秒高亮所有可拆螺丝。道具在底部「道具」箱里：看广告免费领、分享给好友、每天登录赠送、通关奖励，也可 ¥1 买超值礼包（6 个）。</span></li>' +
+      '<li data-n="6"><span><b>道具帮你不改变评级。</b>「移出」把暂存槽里任选的两枚螺丝移到棋盘外的「配件区」，腾出格子，随时可以点回来；满槽失败时还能用来复活；「透视」5 秒高亮所有可拆螺丝。道具在底部「道具」箱里：看广告免费领、分享给好友、每天登录赠送、通关奖励，也可 ¥1 买超值礼包（6 个）。</span></li>' +
       '</ol>' +
       '<h2>颜色与纹样一一对应</h2>' +
       '<div class="pattern-key">' +
@@ -2847,7 +3073,7 @@ module.exports = { createRenderer, configure, coreScrewPos, HEAD, BOARD_SCALE, B
 
   /* ------------------------------ 道具商店 & 模拟支付 ------------------------------ */
   const PROP_META = {
-    sweep: { name: '移出', icon: 'sweep', face: 'sweep-face', desc: '把暂存槽里任选的两枚螺丝放回棋盘原位，腾出格子；满槽失败时还能用来复活' },
+    sweep: { name: '移出', icon: 'sweep', face: 'sweep-face', desc: '把暂存槽里任选的两枚螺丝移到棋盘外的配件区，腾出格子；满槽失败时还能用来复活' },
     peek: { name: '透视', icon: 'peek', face: 'peek-face', desc: '5 秒内高亮当前所有可拆的螺丝，卡关时看清局面再动手' }
   };
   let payRevive = false;
@@ -2863,7 +3089,7 @@ module.exports = { createRenderer, configure, coreScrewPos, HEAD, BOARD_SCALE, B
         '<span class="shop-info"><strong>' + m.name + ' ×' + n + '</strong><small>' + m.desc + '</small></span>' +
         (n > 0 && playing
           ? '<button class="buy-button" data-action="use-item" data-item="' + key + '">使用</button>'
-          : '<span class="buy-button" style="opacity:.5;background:#e8dcc2;cursor:default">' + (n > 0 ? '回棋盘后用' : '没有库存') + '</span>') +
+          : '<span class="buy-button" style="opacity:.5;background:#e8dcc2;cursor:default">' + (n > 0 ? '对局中使用' : '没有库存') + '</span>') +
         '</div>';
     };
     const left = adLeft();
@@ -3023,13 +3249,15 @@ module.exports = { createRenderer, configure, coreScrewPos, HEAD, BOARD_SCALE, B
     ended = false;
     paused = false;
     renderer.reset();
+    renderer.sync(state, res.events);
     for (const b of state.boards) {
       if (b.status === 'hinged') renderer.poses[b.id] = { x: b.x, y: b.y, angle: b.angle };
     }
     clearHint();
     updateUI();
     closeDialog();
-    toast('复活成功！两枚螺丝已放回棋盘，继续本关');
+    if (state.status === 'won') { onWin(false); return; }
+    toast('复活成功！两枚已移到配件区，点它们随时放回暂存槽');
   }
 
 
@@ -3070,12 +3298,23 @@ module.exports = { createRenderer, configure, coreScrewPos, HEAD, BOARD_SCALE, B
     status: () => ({ tray: state.tray.length, matched: state.matched, total: state.total, status: state.status, hints: state.assists.hint }),
     items: () => profile.items,
     buy: (key, n) => { profile.items[key] = (profile.items[key] || 0) + (n || 1); saveProfile(); updateUI(); return profile.items; },
-    sweep: (ids) => { const r = core.sweep(state, ids); if (r.ok) { renderer.reset(); for (const b of state.boards) { if (b.status === 'hinged') renderer.poses[b.id] = { x: b.x, y: b.y, angle: b.angle }; } updateUI(); } return r; },
+    sweep: (ids) => {
+      const r = core.sweep(state, ids);
+      if (r.ok) { renderer.reset(); renderer.sync(state, r.events); for (const b of state.boards) { if (b.status === 'hinged') renderer.poses[b.id] = { x: b.x, y: b.y, angle: b.angle }; } updateUI(); }
+      return r;
+    },
+    takeSpare: (id) => {
+      const r = core.takeSpare(state, id);
+      if (r.ok) { renderer.sync(state, r.events); updateUI(); }
+      return r;
+    },
+    spare: () => state.spare.slice(),
+    rescue: (opt) => core.canRescue(state, opt),
     sweepMode: (on) => { if (on) beginSweep(); else cancelSweep(); return { mode: sweepMode, sel: sweepSel }; },
-    debug: () => ({ paused, ended, sweepMode, status: state && state.status, tray: state && state.tray.length }),
+    debug: () => ({ paused, ended, sweepMode, status: state && state.status, tray: state && state.tray.length, spare: state && state.spare.length }),
     share: (item) => { showShare(item || 'sweep', false); return { left: shareLeft() }; },
     shareLeft: () => shareLeft(),
-    lost: () => { showLost(); return { kind: dialog.dataset.kind, canShare: !!document.querySelector('[data-action=share-revive]') }; },
+    lost: () => { showLost(); return { kind: dialog.dataset.kind, canShare: !!document.querySelector('[data-action=share-revive]'), hopeless: !!document.querySelector('.hopeless-note') }; },
     peek: () => { usePeek(); return { until: peekUntil - performance.now() }; }
   };
 })();
