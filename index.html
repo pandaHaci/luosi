@@ -2147,12 +2147,16 @@ module.exports = { createRenderer, configure, coreScrewPos, HEAD, BOARD_SCALE, B
   function frame(now) {
     const dt = Math.min(0.05, (now - lastFrame) / 1000 || 0);
     lastFrame = now;
-    if (state && !paused && state.status === 'playing') {
+    // 结算（won/lost）后仍推进特效动画，只冻结计时与自动提示；
+    // 否则最后一对消除的动画 age 永远停在 0，看起来「没有消除动画」
+    if (state && !paused) {
       renderer.step(dt);
-      elapsed += dt * 1000;
-      // 30 秒无操作自动提示
-      if (state.moves > 0 && profile.settings.autoHint && !ended && now - idleSince > 30000 && hintStage === 0) {
-        doHint(true);
+      if (state.status === 'playing' && !ended) {
+        elapsed += dt * 1000;
+        // 30 秒无操作自动提示
+        if (state.moves > 0 && profile.settings.autoHint && now - idleSince > 30000 && hintStage === 0) {
+          doHint(true);
+        }
       }
     }
     if (state) {
