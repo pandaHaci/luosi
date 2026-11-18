@@ -1304,6 +1304,7 @@ __def("renderer", function (module, exports, require) {
 
 const physics = require('./physics');
 const world = require('./world');
+const sfx = require('./sfx'); // 仅取 MATCH_BURST 对齐常量（音画同步的单一来源）
 
 const W = world.WORLD.w;
 const H = world.WORLD.h;
@@ -1541,6 +1542,12 @@ function createRenderer(ctx, opts) {
         const b = state.boards.find((x) => x.id === ev.board);
         if (!b) continue;
         delete r.swings[b.id];
+        // 估算板坠出画面的时刻（匀加速下落解一元二次），标注到事件上供 sfx 延迟「咚」声——
+        // 否则音效在脱钉瞬间就响，而板要坠 0.5~1s 才砸到底，音画对不上。
+        const reach = Math.hypot(b.width || 150, b.height || 150);
+        const d = Math.max(1, physics.WORLD_BOTTOM + reach - b.y);
+        const vy0 = b.vy || 0;
+        ev.__impact = Math.max(0.05, Math.min(1.5, (-vy0 + Math.sqrt(vy0 * vy0 + 2 * physics.GRAVITY * d)) / physics.GRAVITY));
         r.falling.push(
           physics.createFalling({
             id: b.id,
@@ -2035,14 +2042,14 @@ function createRenderer(ctx, opts) {
     if (!r.matches) r.matches = [];
     for (let i = 0; i < r.matches.length; i++) {
       const m = r.matches[i];
-      const t = m.age / m.dur;
       const color = colorOf(m.color);
       const cx = (m.x1 + m.x2) / 2;
       const cy = (m.y1 + m.y2) / 2;
+      const BURST = sfx.MATCH_BURST; // 碰撞爆裂时刻，消除音也压在这一拍（音画同步）
       ctx.save();
-      if (t < 0.45) {
+      if (m.age < BURST) {
         // 相位一：两枚小球向中点滑动并微微放大
-        const k = Math.pow(t / 0.45, 2);
+        const k = Math.pow(m.age / BURST, 2);
         const arc = 7 * Math.sin(k * Math.PI);
         const s = 1 + 0.18 * k;
         const x1 = m.x1 + (cx - m.x1) * k;
@@ -2053,7 +2060,7 @@ function createRenderer(ctx, opts) {
         r.drawScrew(ctx, x2, y2, m.color, { radius: 19 * s });
       } else {
         // 相位二：爆裂
-        const k = (t - 0.45) / 0.55;
+        const k = (m.age - BURST) / (m.dur - BURST);
         const fade = 1 - k;
         ctx.globalAlpha = Math.min(1, fade * 1.35);
         // 中心白闪
@@ -2256,6 +2263,13 @@ function isMiniProgram() {
 
 let ctx = null;
 
+/**
+ * 消除音的延迟秒数：消除动画里两枚小球先向中点滑动 ~0.25s 才「碰撞爆裂」，
+ * 音效必须压在爆裂瞬间响，否则音先于画面 1/4 秒（音画不同步）。
+ * renderer.drawMatches 的相位分界引用本常量，单一来源防漂移。
+ */
+const MATCH_BURST = 0.25;
+
 function ensureCtx() {
   if (isMiniProgram()) return null;
   if (!ctx) {
@@ -2316,17 +2330,18 @@ function click(c, delay) {
   noise(c, { dur: 0.03, vol: 0.05, filter: 'highpass', freq: 3000, delay: delay || 0 });
 }
 
-/** 配对上行音：清脆的两连音（音高随 combo 递进，连消越爽） */
+/** 配对上行音：清脆的两连音（音高随 combo 递进，连消越爽）；延迟到小球碰撞爆裂时刻 */
 function match(c, combo) {
   const base = 523.25 * Math.pow(1.0595, Math.min(combo || 0, 8) * 2); // C5 起步，每级升全音
-  tone(c, { type: 'triangle', f0: base, dur: 0.09, vol: 0.16 });
-  tone(c, { type: 'triangle', f0: base * 1.335, dur: 0.14, vol: 0.18, delay: 0.07 });
+  tone(c, { type: 'triangle', f0: base, dur: 0.09, vol: 0.16, delay: MATCH_BURST });
+  tone(c, { type: 'triangle', f0: base * 1.335, dur: 0.14, vol: 0.18, delay: MATCH_BURST + 0.07 });
 }
 
-/** 木板坠落「咚」：低频闷响 + 木质感噪声 */
-function thud(c) {
-  tone(c, { type: 'sine', f0: 150, f1: 60, dur: 0.22, vol: 0.28 });
-  noise(c, { dur: 0.12, vol: 0.1, filter: 'lowpass', freq: 500, delay: 0.01 });
+/** 木板坠落「咚」：低频闷响 + 木质感噪声；delay 为板坠到底的时刻（renderer 估算） */
+function thud(c, delay) {
+  const d = delay || 0;
+  tone(c, { type: 'sine', f0: 150, f1: 60, dur: 0.22, vol: 0.28, delay: d });
+  noise(c, { dur: 0.12, vol: 0.1, filter: 'lowpass', freq: 500, delay: d + 0.01 });
 }
 
 /** 撤回：倒放感的下行短音 */
@@ -2366,7 +2381,8 @@ function play(events, enabled) {
     switch (ev.type) {
       case 'pick': click(c); break;
       case 'match': match(c, combo++); break;
-      case 'boardFall': thud(c); break;
+      // 板落地时刻由 renderer 在事件上标注（__impact），「咚」声砸在落点而不是脱钉瞬间
+      case 'boardFall': thud(c, ev.__impact); break;
       case 'hinge': break; // 铰摆是持续状态，不逐帧出声
       case 'undo': undo(c); break;
       case 'sweep': sweep(c); break;
@@ -2377,7 +2393,7 @@ function play(events, enabled) {
   }
 }
 
-module.exports = { play };
+module.exports = { play, MATCH_BURST };
 
 });
 </script>
