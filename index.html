@@ -2276,8 +2276,14 @@ function ensureCtx() {
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return null;
     try { ctx = new AC(); } catch (e) { return null; }
+    // 移动端 webview（微信内置浏览器等）会在首批音频播完后把 context 打断挂起
+    // （interrupted/suspended）。挂个监听自动拉回，别让用户从此失声。
+    ctx.onstatechange = function () {
+      if (ctx.state === 'suspended' || ctx.state === 'interrupted') {
+        try { ctx.resume(); } catch (e) { /* ignore */ }
+      }
+    };
   }
-  if (ctx.state === 'suspended') { try { ctx.resume(); } catch (e) { /* ignore */ } }
   return ctx;
 }
 
@@ -2368,14 +2374,8 @@ function lose(c) {
   tone(c, { type: 'sine', f0: 311, dur: 0.26, vol: 0.12, delay: 0.16 });
 }
 
-/**
- * 按事件数组播放。enabled 由调用方传（profile.settings.sound），
- * 模块内部不读 profile，保持与存储层解耦。
- */
-function play(events, enabled) {
-  if (!enabled || !events || !events.length) return;
-  const c = ensureCtx();
-  if (!c || c.state !== 'running') return;
+/** 排一批事件对应的音（play 的同步路径） */
+function schedule(events, c) {
   let combo = 0;
   for (const ev of events) {
     switch (ev.type) {
@@ -2391,6 +2391,26 @@ function play(events, enabled) {
       default: break;
     }
   }
+}
+
+/**
+ * 按事件数组播放。enabled 由调用方传（profile.settings.sound），
+ * 模块内部不读 profile，保持与存储层解耦。
+ *
+ * 注意：resume() 是异步的——context 被系统打断挂起时（移动端 webview 常态），
+ * 若同步检查 state !== 'running' 就放弃，恢复后的第一次操作必然静默，
+ * 表现为「第一组有声音、下一组起全哑」。所以挂起时等 resume 兑现后补排这批音。
+ *
+ * ctxOverride 仅测试用：注入假 AudioContext 走同一条分发路径。
+ */
+function play(events, enabled, ctxOverride) {
+  if (!enabled || !events || !events.length) return;
+  const c = ctxOverride || ensureCtx();
+  if (!c) return;
+  if (c.state === 'running') { schedule(events, c); return; }
+  Promise.resolve(c.resume())
+    .then(() => { if (c.state === 'running') schedule(events, c); })
+    .catch(() => { /* resume 被拒（无手势等）就静默跳过，与旧行为一致 */ });
 }
 
 module.exports = { play, MATCH_BURST };
