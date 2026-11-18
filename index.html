@@ -135,9 +135,9 @@ dialog::backdrop{background:#3c4b4866}
 .unlock-grid{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin:14px 0 4px}
 .unlock-chip{font-size:11px;padding:4px 9px;border-radius:20px;background:#eee9dd;color:#b9ab96}
 .unlock-chip.owned{background:#d8e5ba;color:#4e6b52;font-weight:700}
-.room-progress{height:9px;background:#e3d9c2;border-radius:8px;overflow:hidden;margin:12px 0 4px}
-.room-progress>span{display:block;height:100%;background:#7dbb89;border-radius:8px}
+.room-progress{height:9px;background:#e3d9c2;border-radius:8px;overflow:hidden;margin:12px 0 4px}.room-progress>span{display:block;height:100%;background:#7dbb89;border-radius:8px}
 .room-caption{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;font-size:12px;color:#59734d}
+.room-scene{display:block;width:100%;border-radius:12px;border:2px solid #e3d0a8;background:#f7ecd9;margin:10px 0 2px}
 /* 排行榜 */
 .brand-tools{display:flex;align-items:center;gap:7px}
 .rank-button{display:inline-flex;align-items:center;gap:4px;padding:2px 9px 2px 6px;border-radius:13px;border:1.5px solid #a06f22;background:linear-gradient(#ffeeb5,#ffd06d);box-shadow:0 2px 0 #a06f22,inset 0 1px 0 #fffceb;color:#6b4510;font-size:10.5px;font-weight:900;letter-spacing:1px;line-height:1;animation:rankPulse 2.8s ease-in-out infinite;transform-origin:center}
@@ -2971,8 +2971,11 @@ module.exports = { play, MATCH_BURST };
     const myRow = board.filter(function (r) { return r.me; })[0];
     const isFinal = lv === TOTAL_LEVELS && profile.cleared.length === TOTAL_LEVELS;
     const title = isFinal ? '小屋完工，小橘猫入住！' : lv === TOTAL_LEVELS ? '终关机关完成！' : lv === 1 ? (profile.cleared.includes(1) && profile.best[1] ? '第1关完成！' : '第1关完成！') : '第 ' + lv + ' 关完成！';
+    const clearedSet2 = new Set(profile.cleared);
+    let nextLv2 = 0;
+    for (let i = 1; i <= TOTAL_LEVELS; i++) { if (!clearedSet2.has(i)) { nextLv2 = i; break; } }
     const decorCount = profile.cleared.length;
-    const newFurniture = first ? FURNISHINGS[decorCount - 1] : null;
+    const newFurniture = first ? FURNISHINGS[lv - 1] : null;
     setDialog('won',
       '<p class="dialog-kicker">第 ' + lv + ' 关完成</p>' +
       '<h1>' + title + '</h1>' +
@@ -2983,7 +2986,7 @@ module.exports = { play, MATCH_BURST };
       '</div>' +
       '<div class="reward-line">' + (newFurniture ? '小屋添置了「' + esc2(newFurniture) + '」' : '再次完成！通关记录已保留。') + '</div>' +
       (lastWinReward ? '<p class="room-progress-note" style="text-align:center;font-size:12px;color:#8a653a;font-weight:700;margin:6px 0 0">🎁 ' + lastWinReward + '</p>' : '') +
-      '<p class="room-progress-note" style="text-align:center;font-size:12px;color:#59734d;margin:8px 0">已添置 ' + decorCount + ' / ' + FURNITURE_TOTAL + ' 件摆设' + (decorCount < FURNITURE_TOTAL ? ' · 再完成 ' + Math.max(1, decorCount - profile.cleared.length + 1) + ' 个新关卡' : '') + '</p>' +
+      '<p class="room-progress-note" style="text-align:center;font-size:12px;color:#59734d;margin:8px 0">已添置 ' + decorCount + ' / ' + FURNITURE_TOTAL + ' 件摆设' + (nextLv2 ? ' · 下一件：第 ' + nextLv2 + ' 关「' + FURNISHINGS[nextLv2 - 1] + '」' : ' · 小橘猫已入住 🎉') + '</p>' +
       '<div class="modal-actions">' +
       (myRow ? '<button class="rank-callout" data-action="rank-level">本关排名第 ' + myRow.rank + ' 名 · 看看排行榜 ›</button>' : '') +
       (lv < TOTAL_LEVELS ? btn('挑战第 ' + (lv + 1) + ' 关', 'next', 'primary', 'play') : btn('回看全部关卡', 'levels', 'primary', 'levels')) +
@@ -3133,16 +3136,80 @@ module.exports = { play, MATCH_BURST };
       '<div class="modal-actions">' + btn('明白了', 'close', 'primary', 'play') + '</div>');
   }
 
+  /* 小屋场景：已通关第 N 关则画上第 N 件家具（与开局「本关添置」提示同源 FURNISHINGS[lv-1]） */
+  function roomScene(cleared) {
+    const has = (n) => cleared.has(n);
+    const g = (n, svg) => (has(n) ? svg : '');
+    let s = '<svg class="room-scene" viewBox="0 0 360 240" preserveAspectRatio="xMidYMid meet" role="img" aria-label="我的小屋场景">';
+    /* —— 房间基底：墙 / 踢脚线 / 地板 —— */
+    s += '<rect x="0" y="0" width="360" height="172" fill="#f7ecd9"/>'
+      + '<rect x="0" y="0" width="360" height="8" fill="#e8d5b5"/>'
+      + '<rect x="0" y="172" width="360" height="68" fill="#dca96e"/>'
+      + '<rect x="0" y="166" width="360" height="7" fill="#d9b57e"/>'
+      + '<g stroke="#cb9455" stroke-width="1.5"><line x1="0" y1="196" x2="360" y2="196"/><line x1="0" y1="221" x2="360" y2="221"/>'
+      + '<line x1="70" y1="196" x2="70" y2="221"/><line x1="200" y1="172" x2="200" y2="196"/><line x1="300" y1="196" x2="300" y2="221"/><line x1="130" y1="221" x2="130" y2="240"/></g>';
+    /* 18 星星灯串：沿天花板 */
+    s += g(18, '<g><polyline points="6,16 40,30 90,12 150,30 210,12 270,30 330,12 356,22" fill="none" stroke="#c9a35a" stroke-width="1.2"/>'
+      + '<g fill="#f7c948"><circle cx="40" cy="30" r="3"/><circle cx="90" cy="12" r="3"/><circle cx="150" cy="30" r="3"/><circle cx="210" cy="12" r="3"/><circle cx="270" cy="30" r="3"/><circle cx="330" cy="12" r="3"/></g></g>');
+    /* 22 贝壳风铃 */
+    s += g(22, '<g><line x1="128" y1="8" x2="128" y2="20" stroke="#a9744a" stroke-width="1.5"/>'
+      + '<path d="M120,20 q8,6 16,0" fill="none" stroke="#a9744a" stroke-width="1.5"/>'
+      + '<path d="M118,24 a4,6 0 1 0 8,0 z" fill="#f0d6b8"/><path d="M126,26 a4,6 0 1 0 8,0 z" fill="#e8b98e"/><path d="M122,32 a4,6 0 1 0 8,0 z" fill="#f0d6b8"/></g>');
+    /* 4 晴天窗户 + 5 暖色窗帘 */
+    s += g(4, '<g><rect x="36" y="32" width="74" height="60" rx="4" fill="#bfe3f2"/><circle cx="58" cy="52" r="10" fill="#f7d774"/><ellipse cx="88" cy="66" rx="12" ry="6" fill="#ffffff"/><ellipse cx="76" cy="72" rx="9" ry="5" fill="#ffffff"/>'
+      + '<rect x="36" y="32" width="74" height="60" rx="4" fill="none" stroke="#a9744a" stroke-width="5"/><line x1="73" y1="34" x2="73" y2="90" stroke="#a9744a" stroke-width="3"/><line x1="38" y1="62" x2="108" y2="62" stroke="#a9744a" stroke-width="3"/><rect x="31" y="26" width="84" height="6" rx="2" fill="#a9744a"/></g>');
+    s += g(5, '<g fill="#e8a06a"><path d="M31,26 q-9,38 3,72 l9,0 q-7,-38 -3,-72 z"/><path d="M113,26 q9,38 -3,72 l-9,0 q7,-38 3,-72 z"/><path d="M31,26 q27,10 82,0 l0,7 q-55,10 -82,0 z" opacity="0.9"/></g>');
+    /* 11 山丘挂画 + 15 小小挂钟 */
+    s += g(11, '<g><rect x="150" y="32" width="56" height="44" rx="3" fill="#8a653a"/><rect x="155" y="37" width="46" height="34" fill="#cfe8dd"/><circle cx="190" cy="45" r="5" fill="#f7d774"/><path d="M155,71 q12,-16 22,-4 q10,-14 24,4 z" fill="#7d9a6a"/></g>');
+    s += g(15, '<g><circle cx="234" cy="46" r="13" fill="#a9744a"/><circle cx="234" cy="46" r="9" fill="#fff6e3"/><line x1="234" y1="46" x2="234" y2="40" stroke="#6b4510" stroke-width="1.6"/><line x1="234" y1="46" x2="238" y2="48" stroke="#6b4510" stroke-width="1.6"/></g>');
+    /* 7 墙上搁板 + 8 一排好书 */
+    s += g(7, '<g><rect x="252" y="80" width="82" height="6" rx="2" fill="#a9744a"/><path d="M258,86 l0,7 7,-7 z" fill="#8a653a"/><path d="M322,86 l0,7 7,-7 z" fill="#8a653a"/></g>');
+    s += g(8, '<g><rect x="258" y="58" width="7" height="22" fill="#7d9a6a"/><rect x="266" y="54" width="7" height="26" fill="#c96f4a"/><rect x="274" y="60" width="7" height="20" fill="#5b7ba6"/><rect x="283" y="56" width="7" height="24" fill="#d9a13b"/><rect x="292" y="62" width="7" height="18" fill="#e07a5f"/><rect x="302" y="58" width="12" height="22" rx="1" fill="#8a653a" transform="rotate(8 308 69)"/></g>');
+    /* 14 工具挂板 */
+    s += g(14, '<g><rect x="256" y="100" width="72" height="48" rx="3" fill="#e8d5b5" stroke="#c9a35a" stroke-width="1.5"/>'
+      + '<g stroke="#c9a35a" stroke-width="1"><line x1="276" y1="100" x2="276" y2="148"/><line x1="296" y1="100" x2="296" y2="148"/><line x1="316" y1="100" x2="316" y2="148"/></g>'
+      + '<g fill="#6b4510"><rect x="262" y="112" width="4" height="18" rx="1"/><rect x="260" y="106" width="8" height="6" rx="1"/><circle cx="286" cy="118" r="6" fill="none" stroke="#6b4510" stroke-width="3"/><rect x="303" y="110" width="4" height="20" rx="1"/><rect x="301" y="106" width="8" height="5" rx="1"/></g></g>');
+    /* 21 迷你木架 */
+    s += g(21, '<g><rect x="16" y="104" width="44" height="5" rx="2" fill="#a9744a"/><rect x="16" y="128" width="44" height="5" rx="2" fill="#a9744a"/><rect x="18" y="109" width="4" height="19" fill="#8a653a"/><rect x="54" y="109" width="4" height="19" fill="#8a653a"/>'
+      + '<rect x="22" y="96" width="10" height="8" fill="#c96f4a"/><circle cx="44" cy="122" r="5" fill="#f0d6b8"/><rect x="24" y="120" width="9" height="8" fill="#5b7ba6"/></g>');
+    /* 1 软软地毯 + 19 地毯花纹 */
+    s += g(1, '<g><ellipse cx="190" cy="210" rx="92" ry="24" fill="#e07a5f"/><ellipse cx="190" cy="210" rx="68" ry="17" fill="#f2a48f"/></g>');
+    s += g(19, '<g fill="none" stroke="#fff2d9" stroke-width="2"><ellipse cx="190" cy="210" rx="80" ry="20"/><ellipse cx="190" cy="210" rx="54" ry="12"/></g><g fill="#fff2d9"><circle cx="150" cy="206" r="2"/><circle cx="190" cy="214" r="2"/><circle cx="230" cy="206" r="2"/><circle cx="170" cy="212" r="2"/><circle cx="210" cy="212" r="2"/></g>');
+    /* 17 柔软坐垫 + 20 小橘猫入住 */
+    s += g(17, '<g><rect x="104" y="192" width="38" height="15" rx="7" fill="#f7d9a8"/><rect x="106" y="188" width="34" height="10" rx="5" fill="#fbe7c3"/></g>');
+    s += g(20, '<text x="110" y="200" font-size="22">😺</text>');
+    /* 2 小木桌 + 10 暖光台灯 */
+    s += g(2, '<g><rect x="152" y="150" width="78" height="9" rx="3" fill="#a9744a"/><rect x="158" y="159" width="7" height="38" fill="#8a653a"/><rect x="217" y="159" width="7" height="38" fill="#8a653a"/><rect x="158" y="182" width="66" height="5" fill="#b5854e"/></g>');
+    s += g(10, '<g><circle cx="176" cy="138" r="9" fill="#f7d774" opacity="0.45"/><path d="M166,146 l20,0 -6,-16 -8,0 z" fill="#e8a06a"/><rect x="173" y="146" width="6" height="5" fill="#6b4510"/></g>');
+    /* 3 圆角木凳 + 23 圆滚滚抱枕 */
+    s += g(3, '<g><rect x="250" y="160" width="36" height="9" rx="4" fill="#b5854e"/><line x1="255" y1="169" x2="251" y2="197" stroke="#8a653a" stroke-width="5"/><line x1="281" y1="169" x2="285" y2="197" stroke="#8a653a" stroke-width="5"/><line x1="264" y1="169" x2="264" y2="197" stroke="#8a653a" stroke-width="4"/></g>');
+    s += g(23, '<g><circle cx="268" cy="152" r="12" fill="#f3c1b6"/><circle cx="268" cy="152" r="6" fill="#f9d8cf"/></g>');
+    /* 6 叶子盆栽 + 13 收纳篮 */
+    s += g(6, '<g><path d="M20,178 l26,0 -4,22 -18,0 z" fill="#c96f4a"/><path d="M33,178 q-2,-14 -12,-20 q12,2 14,14 q2,-16 12,-20 q-10,4 -10,20" fill="#5f8f52"/></g>');
+    s += g(13, '<g><path d="M60,204 q14,-6 28,0 l-3,18 -22,0 z" fill="#d9a13b"/><path d="M62,206 q12,8 24,0" fill="none" stroke="#b5854e" stroke-width="2"/><circle cx="74" cy="206" r="5" fill="#f2a48f"/></g>');
+    /* 12 收纳小柜 + 16 第二盆绿植（摆在柜顶） + 9 木制工具箱 */
+    s += g(12, '<g><rect x="302" y="140" width="46" height="56" rx="3" fill="#a9744a"/><line x1="325" y1="140" x2="325" y2="196" stroke="#8a653a" stroke-width="2"/><rect x="306" y="148" width="15" height="18" rx="2" fill="#b5854e"/><rect x="329" y="148" width="15" height="18" rx="2" fill="#b5854e"/><rect x="306" y="172" width="15" height="18" rx="2" fill="#b5854e"/><rect x="329" y="172" width="15" height="18" rx="2" fill="#b5854e"/><circle cx="313" cy="157" r="1.6" fill="#6b4510"/><circle cx="336" cy="157" r="1.6" fill="#6b4510"/><circle cx="313" cy="181" r="1.6" fill="#6b4510"/><circle cx="336" cy="181" r="1.6" fill="#6b4510"/></g>');
+    s += g(16, '<g><path d="M316,126 l18,0 -3,14 -12,0 z" fill="#5b7ba6"/><path d="M325,126 q0,-10 -7,-14 q9,1 9,10 q1,-11 8,-13 q-7,3 -6,17" fill="#7d9a6a"/></g>');
+    s += g(9, '<g><rect x="268" y="186" width="30" height="17" rx="3" fill="#c96f4a"/><path d="M274,186 q9,-8 18,0" fill="none" stroke="#8a653a" stroke-width="3"/><rect x="280" y="193" width="6" height="4" rx="1" fill="#f7d774"/></g>');
+    s += '</svg>';
+    return s;
+  }
+
   function showRoom() {
+    const clearedSet = new Set(profile.cleared);
     const n = profile.cleared.length;
-    const chips = FURNISHINGS.map((x, i) => '<span class="unlock-chip ' + (i < n ? 'owned' : '') + '">' + esc2(x) + '</span>').join('');
+    /* 下一件未获得的家具（按关卡号发放，与开局提示同源） */
+    let nextLv = 0;
+    for (let i = 1; i <= TOTAL_LEVELS; i++) { if (!clearedSet.has(i)) { nextLv = i; break; } }
+    const nextNote = nextLv ? '下一件：第 ' + nextLv + ' 关「' + FURNISHINGS[nextLv - 1] + '」' : '小橘猫已入住 🎉';
+    const chips = FURNISHINGS.map((x, i) => '<span class="unlock-chip ' + (clearedSet.has(i + 1) ? 'owned' : '') + '">' + esc2(x) + '</span>').join('');
     setDialog('room',
       closeBtn() +
       '<p class="dialog-kicker">攻克机关，为小橘猫修好小屋</p>' +
       '<h1>我的螺丝小屋</h1>' +
-      '<div class="dialog-mascot">🐱🏠</div>' +
+      roomScene(clearedSet) +
       '<div class="room-progress"><span style="width:' + Math.min(100, Math.round(n / FURNITURE_TOTAL * 100)) + '%"></span></div>' +
-      '<div class="room-caption"><span>' + n + ' / ' + FURNITURE_TOTAL + ' 件摆设</span><span>' + (n < FURNITURE_TOTAL ? '再完成 ' + Math.max(1, n - profile.cleared.length + 1) + ' 个新关卡' : '小橘猫已入住') + '</span></div>' +
+      '<div class="room-caption"><span>' + n + ' / ' + FURNITURE_TOTAL + ' 件摆设</span><span>' + nextNote + '</span></div>' +
       '<div class="unlock-grid">' + chips + '</div>' +
       '<div class="modal-actions">' + btn('回到游戏', 'close', 'primary', 'play') + '</div>');
   }
