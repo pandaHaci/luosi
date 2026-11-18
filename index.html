@@ -2475,7 +2475,19 @@ module.exports = { play, MATCH_BURST };
   const dialog = $('gameDialog');
   const inner = $('dialogInner');
   // 任何途径关掉弹窗（含 Esc 原生 cancel）都恢复计时，避免 paused 卡死
-  dialog.addEventListener('close', function () { paused = false; regionPicking = false; payRevive = false; });
+  dialog.addEventListener('close', function () {
+    paused = false; regionPicking = false; payRevive = false;
+    // 结算弹窗被用户直接关掉（Esc / 安卓返回键）时 ended 还挂着——
+    // 画布输入被锁死、暂停菜单又被 status!=='playing' 挡住，整局卡死。
+    // 延迟一拍检查：合法动作（下一关/重开/撤回/复活）会在同一拍内改状态或重开弹窗，
+    // 到那时这里要么 status 变回 playing、要么 dialog 已重新打开，都不会误拉起。
+    setTimeout(function () {
+      if (!dialog.open && state && ended && state.status !== 'playing') {
+        if (state.status === 'won') showWon(lastWinFirst);
+        else showLost();
+      }
+    }, 0);
+  });
   const SAVE_KEY = 'screw-cottage.h5.v1';
 
   const COLORS = core.COLORS;
@@ -2500,8 +2512,8 @@ module.exports = { play, MATCH_BURST };
       const raw = localStorage.getItem(SAVE_KEY);
       if (raw) {
         const p = JSON.parse(raw);
-        d.unlocked = Math.min(20, Math.max(1, p.unlocked || 1));
-        d.cleared = (p.cleared || []).filter((n) => n >= 1 && n <= 20);
+        d.unlocked = Math.min(TOTAL_LEVELS, Math.max(1, p.unlocked || 1));
+        d.cleared = (p.cleared || []).filter((n) => n >= 1 && n <= TOTAL_LEVELS);
         if (p.settings) Object.assign(d.settings, p.settings);
         if (p.best) d.best = p.best;
         // 道具库存：老档没有则赠 1 移出 + 1 透视做新手礼
@@ -2552,6 +2564,7 @@ module.exports = { play, MATCH_BURST };
   let paused = false;
   let ended = false;
   let lastWinReward = '';
+  let lastWinFirst = false; // 重新拉起结算弹窗时要还原「是否首次通关」的文案
   let lastFrame = 0;
   let hintStage = 0; // 0 无 / 1 看板 / 2 看螺丝
   let hintBoardId = null;
@@ -2848,10 +2861,11 @@ module.exports = { play, MATCH_BURST };
   function onWin() {
     ended = true;
     const first = !profile.cleared.includes(state.levelId);
+    lastWinFirst = first;
     if (first) {
       profile.cleared.push(state.levelId);
       profile.cleared.sort((a, b) => a - b);
-      profile.unlocked = Math.min(20, Math.max(profile.unlocked, state.levelId + 1));
+      profile.unlocked = Math.min(TOTAL_LEVELS, Math.max(profile.unlocked, state.levelId + 1));
       // 首次通关奖励：道具各 +1，培养「过关=有收获」的循环
       profile.items.sweep += 1;
       profile.items.peek += 1;
@@ -2955,8 +2969,8 @@ module.exports = { play, MATCH_BURST };
     const lv = state.levelId;
     const board = buildLevelBoard(lv);
     const myRow = board.filter(function (r) { return r.me; })[0];
-    const isFinal = lv === 20 && profile.cleared.length === 20;
-    const title = isFinal ? '小屋完工，小橘猫入住！' : lv === 20 ? '终关机关完成！' : lv === 1 ? (profile.cleared.includes(1) && profile.best[1] ? '第1关完成！' : '第1关完成！') : '第 ' + lv + ' 关完成！';
+    const isFinal = lv === TOTAL_LEVELS && profile.cleared.length === TOTAL_LEVELS;
+    const title = isFinal ? '小屋完工，小橘猫入住！' : lv === TOTAL_LEVELS ? '终关机关完成！' : lv === 1 ? (profile.cleared.includes(1) && profile.best[1] ? '第1关完成！' : '第1关完成！') : '第 ' + lv + ' 关完成！';
     const decorCount = profile.cleared.length;
     const newFurniture = first ? FURNISHINGS[decorCount - 1] : null;
     setDialog('won',
